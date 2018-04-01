@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+    <html>
+    <head>
+        <meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+        <style>
+/*--------------------------------------------------------------------------------------------- * Copyright (c) Microsoft Corporation. All rights reserved. * Licensed under the MIT License. See License.txt in the project root for license information. *--------------------------------------------------------------------------------------------*/ body { font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback"; font-size: 14px; padding: 0 12px; line-height: 22px; word-wrap: break-word; } body.scrollBeyondLastLine { margin-bottom: calc(100vh - 22px); } body.showEditorSelection .code-line { position: relative; } body.showEditorSelection .code-active-line:before, body.showEditorSelection .code-line:hover:before { content: ""; display: block; position: absolute; top: 0; left: -12px; height: 100%; } body.showEditorSelection li.code-active-line:before, body.showEditorSelection li.code-line:hover:before { left: -30px; } .vscode-light.showEditorSelection .code-active-line:before { border-left: 3px solid rgba(0, 0, 0, 0.15); } .vscode-light.showEditorSelection .code-line:hover:before { border-left: 3px solid rgba(0, 0, 0, 0.40); } .vscode-dark.showEditorSelection .code-active-line:before { border-left: 3px solid rgba(255, 255, 255, 0.4); } .vscode-dark.showEditorSelection .code-line:hover:before { border-left: 3px solid rgba(255, 255, 255, 0.60); } .vscode-high-contrast.showEditorSelection .code-active-line:before { border-left: 3px solid rgba(255, 160, 0, 0.7); } .vscode-high-contrast.showEditorSelection .code-line:hover:before { border-left: 3px solid rgba(255, 160, 0, 1); } img { max-width: 100%; max-height: 100%; } a { color: #4080D0; text-decoration: none; } a:focus, input:focus, select:focus, textarea:focus { outline: 1px solid -webkit-focus-ring-color; outline-offset: -1px; } hr { border: 0; height: 2px; border-bottom: 2px solid; } h1 { padding-bottom: 0.3em; line-height: 1.2; border-bottom-width: 1px; border-bottom-style: solid; } h1, h2, h3 { font-weight: normal; } h1 code, h2 code, h3 code, h4 code, h5 code, h6 code { font-size: inherit; line-height: auto; } a:hover { color: #4080D0; text-decoration: underline; } table { border-collapse: collapse; } table > thead > tr > th { text-align: left; border-bottom: 1px solid; } table > thead > tr > th, table > thead > tr > td, table > tbody > tr > th, table > tbody > tr > td { padding: 5px 10px; } table > tbody > tr + tr > td { border-top: 1px solid; } blockquote { margin: 0 7px 0 5px; padding: 0 16px 0 10px; border-left: 5px solid; } code { font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback"; font-size: 14px; line-height: 19px; } body.wordWrap pre { white-space: pre-wrap; } .mac code { font-size: 12px; line-height: 18px; } code > div { padding: 16px; border-radius: 3px; overflow: auto; } /** Theming */ .vscode-light { color: rgb(30, 30, 30); } .vscode-dark { color: #DDD; } .vscode-high-contrast { color: white; } .vscode-light code { color: #A31515; } .vscode-dark code { color: #D7BA7D; } .vscode-light code > div { background-color: rgba(220, 220, 220, 0.4); } .vscode-dark code > div { background-color: rgba(10, 10, 10, 0.4); } .vscode-high-contrast code > div { background-color: rgb(0, 0, 0); } .vscode-high-contrast h1 { border-color: rgb(0, 0, 0); } .vscode-light table > thead > tr > th { border-color: rgba(0, 0, 0, 0.69); } .vscode-dark table > thead > tr > th { border-color: rgba(255, 255, 255, 0.69); } .vscode-light h1, .vscode-light hr, .vscode-light table > tbody > tr + tr > td { border-color: rgba(0, 0, 0, 0.18); } .vscode-dark h1, .vscode-dark hr, .vscode-dark table > tbody > tr + tr > td { border-color: rgba(255, 255, 255, 0.18); } .vscode-light blockquote, .vscode-dark blockquote { background: rgba(127, 127, 127, 0.1); border-color: rgba(0, 122, 204, 0.5); } .vscode-high-contrast blockquote { background: transparent; border-color: #fff; }
+</style>
+<style>
+/* Tomorrow Theme */ /* http://jmblog.github.com/color-themes-for-google-code-highlightjs */ /* Original theme - https://github.com/chriskempson/tomorrow-theme */ /* Tomorrow Comment */ .hljs-comment, .hljs-quote { color: #8e908c; } /* Tomorrow Red */ .hljs-variable, .hljs-template-variable, .hljs-tag, .hljs-name, .hljs-selector-id, .hljs-selector-class, .hljs-regexp, .hljs-deletion { color: #c82829; } /* Tomorrow Orange */ .hljs-number, .hljs-built_in, .hljs-builtin-name, .hljs-literal, .hljs-type, .hljs-params, .hljs-meta, .hljs-link { color: #f5871f; } /* Tomorrow Yellow */ .hljs-attribute { color: #eab700; } /* Tomorrow Green */ .hljs-string, .hljs-symbol, .hljs-bullet, .hljs-addition { color: #718c00; } /* Tomorrow Blue */ .hljs-title, .hljs-section { color: #4271ae; } /* Tomorrow Purple */ .hljs-keyword, .hljs-selector-tag { color: #8959a8; } .hljs { display: block; overflow-x: auto; color: #4d4d4c; padding: 0.5em; } .hljs-emphasis { font-style: italic; } .hljs-strong { font-weight: bold; }
+</style>
+<style>
+ul.contains-task-list { padding-left: 0; } ul ul.contains-task-list { padding-left: 40px; } .task-list-item { list-style-type: none; } .task-list-item-checkbox { vertical-align: middle; }
+</style>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', 'HelveticaNeue-Light', 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+    </head>
+    <body>
+        <ul>
+<li><a href="#graphics">Graphics</a>
+<ul>
+<li><a href="#types">Types</a>
+<ul>
+<li><a href="#keyframe">Keyframe</a></li>
+<li><a href="#keyframe-set">keyframe set</a></li>
+<li><a href="#draw-function">draw function</a></li>
+<li><a href="#sprite-state">sprite state</a></li>
+</ul>
+</li>
+<li><a href="#interaces">Interaces</a>
+<ul>
+<li><a href="#isprite">ISprite</a></li>
+</ul>
+</li>
+<li><a href="#easing-functions">Easing functions</a></li>
+<li><a href="#classes">Classes</a>
+<ul>
+<li><a href="#vector-sprite">Vector Sprite</a>
+<ul>
+<li><a href="#constructor">constructor</a></li>
+<li><a href="#public-variables">public variables</a></li>
+<li><a href="#methods">methods</a></li>
+<li><a href="#example-code">Example Code</a></li>
+</ul>
+</li>
+<li><a href="#dynamic-vector-sprite">Dynamic Vector Sprite</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h1 id="graphics">Graphics</h1>
+<pre class="hljs"><code><div><span class="hljs-keyword">import</span> { Graphics } from <span class="hljs-string">'./Bunas'</span>;
+</div></code></pre>
+<p>This module provides method for rendering imagagry to the canvas during your game. This can include anything from genreating animated sprites from sprite sheets or vector descriptions, background images, tile sets or GUI features needed for your project, such as menus and heads-up displays.</p>
+<h2 id="types">Types</h2>
+<h3 id="keyframe">Keyframe</h3>
+<pre class="hljs"><code><div><span class="hljs-keyword">type</span> keyframe = <span class="hljs-built_in">number</span> | <span class="hljs-built_in">number</span>[] | <span class="hljs-built_in">number</span>[][] | (<span class="hljs-built_in">number</span> | <span class="hljs-built_in">string</span>)[][];
+
+<span class="hljs-keyword">let</span> a : keyframe = <span class="hljs-number">5</span>,
+    b : keyframe = [<span class="hljs-number">10</span>, <span class="hljs-number">20</span>, <span class="hljs-number">30</span>, <span class="hljs-number">25</span>],
+    c : keyframe = [[<span class="hljs-number">0</span>, <span class="hljs-number">10</span>], [<span class="hljs-number">0.3</span>, <span class="hljs-number">30</span>], [<span class="hljs-number">0.9</span>, <span class="hljs-number">20</span>]],
+    d : keyframe = [[<span class="hljs-number">0</span>, <span class="hljs-number">10</span>], [<span class="hljs-number">0.3</span>, <span class="hljs-number">30</span>, <span class="hljs-string">'bounceIn'</span>], [<span class="hljs-number">0.9</span>, <span class="hljs-number">20</span>, <span class="hljs-string">'bounceOut'</span>]]
+</div></code></pre>
+<p>A <em>keyframe</em> describes the values a property will take over the course of an animation.<br>
+If a <em>number</em> is provided, the property will remain constant throughout the animation.<br>
+If a <em>number[]</em> array is provided the values of the property will vary between each value in the array at equal intervals before looping back to the first value as the animation cycle repeats.<br>
+If a you want to specific exact timings for your animation, instead of letting the time between each value be equal, you can provide a nested <em>number[][]</em> array where each inner array has two values, the first a number between 0 - 1 to indicate a point in the animation cycle and the second equal to the value of the property to be reached at that point.<br>
+A third string value can be added to these array values to indicate the <em>easing function</em> used between that frame and the next.</p>
+<h3 id="keyframe-set">keyframe set</h3>
+<pre class="hljs"><code><div><span class="hljs-keyword">type</span> keyframeSet = { [property: <span class="hljs-built_in">string</span>] : keyframe }
+
+<span class="hljs-keyword">let</span> <span class="hljs-keyword">set</span> : keyframeSet = {
+    height : [<span class="hljs-number">0</span>, <span class="hljs-number">20</span>, <span class="hljs-number">50</span>],
+    width  : [[<span class="hljs-number">0.2</span>, <span class="hljs-number">20</span>], [<span class="hljs-number">0.8</span>, <span class="hljs-number">30</span>]]
+}
+</div></code></pre>
+<p>A <em>keyframeSet</em> is an object where each parameter describes the <em>keyframe</em> to animate a particular property.
+On each animation frame, each of these properties are mapped to the single values they would have on that particular frame before being sent to a <em>drawFunction</em>.</p>
+<h3 id="draw-function">draw function</h3>
+<pre class="hljs"><code><div><span class="hljs-keyword">type</span> drawFunction = (frame: { [property: <span class="hljs-built_in">string</span>] : <span class="hljs-built_in">number</span> }, ctx: CanvasRenderingContext2D)=&gt;<span class="hljs-built_in">void</span>
+</div></code></pre>
+<p>A <em>draw function</em> is a function which executes a series of canvas drawing calls; such as <em>ctx.fillRect()</em>, <em>ctx.lineTo(),</em> etc.; to draw a vector image.
+The <em>frame</em> input is an object derived from a <em>keyframe set</em>. On each frame of animation, the values of each property in a <em>keyframe set</em> will be mapped to its current single value at that moment of time. This mapped keyframe set becomes the frame input to a <em>draw function</em>
+The <em>ctx</em> input is simply the current canvas drawing context.</p>
+<h3 id="sprite-state">sprite state</h3>
+<pre class="hljs"><code><div><span class="hljs-keyword">export</span> <span class="hljs-keyword">type</span> spriteState  = {
+    duration   : <span class="hljs-built_in">number</span>,
+    elements   : { [element: <span class="hljs-built_in">string</span>] : keyframeSet }
+    fr?        : <span class="hljs-built_in">number</span>,
+    iteration? : <span class="hljs-built_in">number</span>
+    easeIn?    : <span class="hljs-built_in">string</span>,
+    easeOut?   : <span class="hljs-built_in">string</span>,
+    onEnd?     : ()=&gt;<span class="hljs-built_in">void</span>
+}
+</div></code></pre>
+<p>A sprite state is</p>
+<h2 id="interaces">Interaces</h2>
+<h3 id="isprite">ISprite</h3>
+<pre class="hljs"><code><div><span class="hljs-keyword">interface</span> ISprite {
+    duration: <span class="hljs-built_in">number</span>;
+    draw: (x: <span class="hljs-built_in">number</span>, y: <span class="hljs-built_in">number</span>, ang: <span class="hljs-built_in">number</span>, ctx: CanvasRenderingContext2D)=&gt;<span class="hljs-built_in">void</span>;
+    toggle: (play: <span class="hljs-built_in">boolean</span>, setFrame: <span class="hljs-built_in">number</span>)=&gt;<span class="hljs-built_in">void</span>;
+    reverse: ()=&gt;<span class="hljs-built_in">void</span>;
+    onEnd: ()=&gt;<span class="hljs-built_in">void</span>;
+};
+</div></code></pre>
+<p>In the <em>Graphics</em> module, serveral classes are prvided from creating differnet kinds of sprites. Each of these classes will implement the ISprite interface ensuing that regardles of the method of cration, each sprite in a <em>Bunas</em> game can b handled with the same set of functions.</p>
+<h2 id="easing-functions">Easing functions</h2>
+<p>Many animation functions will accept a string input called <em>ease</em>. This input describes the effect to be used when transitioning from one value to another in an animation cycle.
+The following easing function names are accepted in this module:</p>
+<ul>
+<li>linear</li>
+<li>sine
+<ul>
+<li>sineIn</li>
+<li>sineOut</li>
+</ul>
+</li>
+<li>cubic
+<ul>
+<li>cubicIn</li>
+<li>cubicOut</li>
+</ul>
+</li>
+<li>quad
+<ul>
+<li>quadIn</li>
+<li>quadOut</li>
+</ul>
+</li>
+<li>quart
+<ul>
+<li>quartIn</li>
+<li>quartOut</li>
+</ul>
+</li>
+<li>quint</li>
+<li>expo
+<ul>
+<li>expoIn</li>
+<li>expoOut</li>
+</ul>
+</li>
+<li>back
+<ul>
+<li>backIn</li>
+<li>backOut</li>
+</ul>
+</li>
+<li>bounce
+<ul>
+<li>bounceIn</li>
+<li>bounceOut</li>
+</ul>
+</li>
+<li>elastic
+<ul>
+<li>elasticIn</li>
+<li>elasticOut</li>
+</ul>
+</li>
+<li>circular
+<ul>
+<li>circular</li>
+<li>In</li>
+<li>circularOut</li>
+</ul>
+</li>
+</ul>
+<p>When none is provided, a <em>sine</em> easing will always be used by default.</p>
+<h2 id="classes">Classes</h2>
+<h3 id="vector-sprite">Vector Sprite</h3>
+<p>A sprite created from a <em>draw function</em> containing a series of canvas drawing commands, and an optional <em>keyframe set</em> which describes the animation of parameters which can be used in the draw function.</p>
+<h4 id="constructor">constructor</h4>
+<pre class="hljs"><code><div><span class="hljs-keyword">constructor</span>(
+    drawFunction :drawFunction,
+    keyframeSet  :keyframeSet = null,
+    duration     :number = 30
+) 
+</div></code></pre>
+<p>The <em>keyframe set</em> is an object where each key-value pair is the name of a parameter and the values of that parameters that need to be interpolated during the animation cycle. It can take any of the following forms:</p>
+<pre class="hljs"><code><div>keyframeSet = {
+    <span class="hljs-comment">//constant value for whole animation</span>
+    height : <span class="hljs-number">20</span>,
+
+    <span class="hljs-comment">//transition though values at equal intervals</span>
+    width : [<span class="hljs-number">10</span>, <span class="hljs-number">30</span>, <span class="hljs-number">50</span>, <span class="hljs-number">40</span>],
+
+    <span class="hljs-comment">//specify fraction of animation for each value</span>
+    left  : [[<span class="hljs-number">0</span>, <span class="hljs-number">10</span>], [<span class="hljs-number">0.4</span>, <span class="hljs-number">30</span>], [<span class="hljs-number">0.8</span>, <span class="hljs-number">40</span>]],
+    
+    <span class="hljs-comment">//specify easing function between each frame (sine by default)</span>
+    top   : [[<span class="hljs-number">0</span>, <span class="hljs-number">10</span>, <span class="hljs-string">'bounce'</span>], [<span class="hljs-number">0.5</span>, <span class="hljs-number">50</span>, <span class="hljs-string">'quad'</span>]] 
+}
+</div></code></pre>
+<p>The draw function takes two inputs:</p>
+<pre class="hljs"><code><div><span class="hljs-function"><span class="hljs-keyword">function</span>(<span class="hljs-params">frame: {[propertyName] : <span class="hljs-built_in">number</span>}, ctx: Canvas2DRenderingContext</span>) </span>{ }
+</div></code></pre>
+<p><em>frame</em> contains a list of property values for the current animation frame. The frame object will contain the same keys as the keyframeSet but with each value mapped to its value for the current animation frame.
+<em>ctx</em> is simply the current canvas drawing context.</p>
+<p>The sprite also takes a <em>duration</em> input, which is the number of game frames a single animation cycle of the sprite will last.</p>
+<h4 id="public-variables">public variables</h4>
+<pre class="hljs"><code><div>drawFunction :drawFunction
+keyFrameset  :keyframeSet,
+duration     :<span class="hljs-built_in">number</span>;
+fr           :<span class="hljs-built_in">number</span>
+onEnd        :()=&gt;<span class="hljs-built_in">void</span>
+</div></code></pre>
+<p><em>fr</em> is the current animation frame of the sprite. Since this is a vector sprite this can be any decimal number between 0 and 1 repersenting the fraction of the animation which has elasped so far.</p>
+<p><em>onEnd</em> is a function which, if set, will be called at the end of every animation cycle of the sprite.</p>
+<h4 id="methods">methods</h4>
+<pre class="hljs"><code><div>draw(x: <span class="hljs-built_in">number</span>, y: <span class="hljs-built_in">number</span>, ang: <span class="hljs-built_in">number</span>, ctx: CanvasRenderingContext2D) =&gt; <span class="hljs-built_in">void</span>
+</div></code></pre>
+<p>Draws the sprite in next frame of its animation.
+<em>x</em>, <em>y</em> and <em>ang</em> are the position and rotation to draw the sprite on the canvas.</p>
+<p><em>ctx</em> is the current game canvas context.</p>
+<pre class="hljs"><code><div>toggle(play: <span class="hljs-built_in">boolean</span> = <span class="hljs-literal">null</span>, setFrame?: <span class="hljs-built_in">number</span>)=&gt; <span class="hljs-built_in">void</span>
+</div></code></pre>
+<p>Pauses or resumes the animation of the sprite. When paused, each call to draw() will render the sprite but will not increment its animation frame.
+If <em>play</em> is true, the animation will play; false, it will pause; unset it will change to the state is not currently in.
+<em>setFrame</em> can be set to a value between 0 and 1 to set the animation frame of the sprite before pausing / resuming.</p>
+<pre class="hljs"><code><div>reverse()=&gt; <span class="hljs-built_in">void</span>
+</div></code></pre>
+<p>Reverses the direction of the play of the animation cycle.</p>
+<h4 id="example-code">Example Code</h4>
+<pre class="hljs"><code><div><span class="hljs-comment">//Static sprite</span>
+drawFunction = () =&gt; ctx.fillRect(<span class="hljs-number">0</span>, <span class="hljs-number">0</span>, <span class="hljs-number">200</span>, <span class="hljs-number">100</span>);
+
+<span class="hljs-comment">//Sprite with simple keyframe animation</span>
+frame = {
+    width : [<span class="hljs-number">200</span>, <span class="hljs-number">300</span>],
+    height: [<span class="hljs-number">100</span>, <span class="hljs-number">10</span>, <span class="hljs-number">60</span>, <span class="hljs-number">10</span>]
+};
+drawFunction = (frame) =&gt; ctx.fillRect(<span class="hljs-number">0</span>, <span class="hljs-number">0</span>, frame.width, frame.height);
+
+<span class="hljs-comment">//More complex keyframe sprite</span>
+frame = {
+    width : [[<span class="hljs-number">0</span>, <span class="hljs-number">200</span>, <span class="hljs-string">'bounce'</span>], [<span class="hljs-number">90</span>, <span class="hljs-number">300</span>, <span class="hljs-string">'backOut'</span>]],
+    height: <span class="hljs-number">50</span>
+};
+drawFunction = (frame) =&gt; ctx.fillRect(<span class="hljs-number">0</span>, <span class="hljs-number">0</span>, frame.width, frame.height);
+
+<span class="hljs-comment">//Init and call</span>
+<span class="hljs-keyword">let</span> sprite = <span class="hljs-keyword">new</span> Graphics.VectorSprite(drawFunction, frame, <span class="hljs-number">30</span>);
+sprite.draw(<span class="hljs-number">100</span>, <span class="hljs-number">100</span>, <span class="hljs-number">0</span>, ctx);
+</div></code></pre>
+<h3 id="dynamic-vector-sprite">Dynamic Vector Sprite</h3>
+<p>This class allows you to define several elements which make up a sprite, differnet states the sprite can exist in an differnet animated actions the sprite can perform.
+You can then trigger the sprite to change elements, states or perform actions with each animation eaing smoothly with the next.</p>
+<pre class="hljs"><code><div>
+</div></code></pre>
+
+    </body>
+    </html>

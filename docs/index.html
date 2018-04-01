@@ -1,0 +1,248 @@
+<html>
+
+<head>
+    <title> Bunas Engine | Docs </title>
+
+    <style>
+        body {
+            font-family: Tahoma, Geneva, sans-serif;
+            font-size: 14px;
+            line-height: 1.6em;
+            padding: 30px;
+        }
+
+        section {
+            display: none;
+            width: 100%;
+            min-height: 50vh;
+        }
+
+        nav>ul>li>li>ul {
+            display: none;
+        }
+
+        body[data-section="0"] section:nth-child(1),
+        body[data-section="1"] section:nth-child(2),
+        body[data-section="2"] section:nth-child(3),
+        body[data-section="3"] section:nth-child(4),
+        body[data-section="4"] section:nth-child(5),
+        body[data-section="5"] section:nth-child(6),
+        body[data-section="6"] section:nth-child(7),
+        body[data-section="7"] section:nth-child(8),
+        body[data-section="8"] section:nth-child(9),
+        body[data-section="0"] nav>ul>li:nth-child(1)>li>ul,
+        body[data-section="1"] nav>ul>li:nth-child(2)>li>ul,
+        body[data-section="2"] nav>ul>li:nth-child(3)>li>ul,
+        body[data-section="3"] nav>ul>li:nth-child(4)>li>ul,
+        body[data-section="4"] nav>ul>li:nth-child(5)>li>ul,
+        body[data-section="5"] nav>ul>li:nth-child(6)>li>ul,
+        body[data-section="6"] nav>ul>li:nth-child(7)>li>ul,
+        body[data-section="7"] nav>ul>li:nth-child(8)>li>ul,
+        body[data-section="8"] nav>ul>li:nth-child(9)>li>ul {
+            display: block;
+        }
+
+        body[data-section="0"] nav>ul>li:nth-child(1)>li,
+        body[data-section="1"] nav>ul>li:nth-child(2)>li>a,
+        body[data-section="2"] nav>ul>li:nth-child(3)>li>a,
+        body[data-section="3"] nav>ul>li:nth-child(4)>li>a,
+        body[data-section="4"] nav>ul>li:nth-child(5)>li>a,
+        body[data-section="5"] nav>ul>li:nth-child(6)>li>a,
+        body[data-section="6"] nav>ul>li:nth-child(7)>li>a,
+        body[data-section="7"] nav>ul>li:nth-child(8)>li>a,
+        body[data-section="8"] nav>ul>li:nth-child(9)>li>a{
+            color: dodgerblue;
+            font-weight: bold;
+        }
+
+        nav {
+            width: 230px;
+            float: left;
+        }
+
+        nav a {
+            text-decoration: none;
+            color: black;
+        }
+
+        nav a:visited {
+            color: black;
+        }
+
+        nav ul {
+            margin-left: 0;
+        }
+
+        nav li {
+            font-size: 16px;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+            margin-left: 75px;
+        }
+
+        ul ul {
+            margin-left: 30px;
+        }
+
+        ul ul>li:before {
+            content: '' !important;
+        }
+
+        #container ul>li:before {
+            content: '- ';
+            font-size: 20px;
+            vertical-align: -16%;
+            line-height: 8px;
+        }
+
+        #container {
+            float: left;
+            width: calc(100% - 300px);
+            padding: 30px;
+            border-left: 1px solid gray;
+        }
+
+        h1, h2, h3, h4, h5 {
+            text-transform: capitalize;
+        }
+
+        h1 {
+            font-weight: bold;
+            color: dodgerblue;
+        }
+
+        h2 {
+            margin-top: 40px;
+        }
+
+        h3 {
+            margin-top: 20px;
+            margin-left: 15px;
+        }
+
+        h2, h3 {
+            font-weight: 300;
+        }
+
+        h3+p {
+            margin-left: 30px;
+        }
+
+        h4 {
+            margin-top: 30px;
+            margin-left: 30px;
+        }
+
+        p, pre {
+            margin-left: 45px;
+        }
+
+        em {
+            font-style: normal;
+            font-weight: bold;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            background-color: #222;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 5px;
+        }  
+
+        .hljs-comment {
+            color: gray;
+        }
+
+        .hljs-keyword {
+            color: crimson;
+            font-weight: bold;
+        }
+
+        .hljs-built_in {
+            color: darkorange;
+            font-style: italic;
+        }
+        
+        .hljs-function {
+            color: dodgerblue;
+            font-weight: bold;
+        }
+        
+        .hljs-number, .hljs-string {
+            font-weight: bold;
+            font-style: italic;
+            color: greenyellow;
+        }
+    </style>
+</head>
+
+<body data-section="0">
+    <nav>
+        <h2>Modules</h2>
+        <ul id="moduleNav">
+        </ul>
+    </nav>
+
+    <div id="container">
+        <section>
+            <h1> Overview </h1>
+            This site contains the complete documentation for the <em>Bunas engine</em>, including explainations of all functions, classes and interfaces.
+            Example code has also been included to add clarify functionaily where needed.
+            <br/><br/>
+            The Bunas Engine is seperated into several modules each encapsulating a particular set of featues.
+            <br/>
+            The <em>Core</em> module must be imported for all projects as it contins functions for initlaizing and running the engine.
+            <br/>
+            All other modules are optional and can be imported as needed for your specific project.
+        </section>
+    </div>
+
+    <script>
+        let nav       = document.getElementById('moduleNav'),
+            container = document.getElementById('container');
+
+        setMenuItem('<li>Overview</li>');
+
+        [
+            'Graphics',
+            'Debug'
+        ]
+        .forEach(function(m, i) {
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    var start = this.responseText.indexOf('<body>') + 6,
+                        end   = this.responseText.indexOf('<\/body>');
+
+                    var section = document.createElement('section');
+                    section.innerHTML = this.responseText.substring(start, end);
+                    container.appendChild(section);
+
+                    var toc = section.getElementsByTagName('ul')[0];
+                    setMenuItem(toc.innerHTML);
+                    section.removeChild(toc);
+                }
+            }
+            xhttp.open('GET', './pages/' + m + '.html', true);
+            xhttp.send();
+        });
+
+        function setMenuItem(toc) {
+            var pos = nav.childElementCount;
+            var item = document.createElement('li');
+            item.onclick = function() {
+                document.body.setAttribute('data-section', pos);
+            };
+            item.innerHTML = toc;
+            nav.appendChild(item);
+        }
+    </script>
+</body>
+
+</html>
