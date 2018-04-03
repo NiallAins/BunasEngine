@@ -10,17 +10,15 @@
             line-height: 1.6em;
             padding: 30px;
         }
-
         section {
             display: none;
             width: 100%;
             min-height: 50vh;
         }
-
         nav>ul>li>li>ul {
             display: none;
+            text-transform: capitalize;
         }
-
         body[data-section="0"] section:nth-child(1),
         body[data-section="1"] section:nth-child(2),
         body[data-section="2"] section:nth-child(3),
@@ -41,7 +39,6 @@
         body[data-section="8"] nav>ul>li:nth-child(9)>li>ul {
             display: block;
         }
-
         body[data-section="0"] nav>ul>li:nth-child(1)>li,
         body[data-section="1"] nav>ul>li:nth-child(2)>li>a,
         body[data-section="2"] nav>ul>li:nth-child(3)>li>a,
@@ -54,132 +51,159 @@
             color: dodgerblue;
             font-weight: bold;
         }
-
         nav {
             width: 230px;
             float: left;
         }
-
         nav a {
             text-decoration: none;
             color: black;
         }
-
         nav a:visited {
             color: black;
         }
-
         nav ul {
             margin-left: 0;
         }
-
         nav li {
             font-size: 16px;
             margin: 10px 0;
             cursor: pointer;
         }
-
         ul {
             list-style: none;
             padding: 0;
             margin-left: 75px;
         }
-
         ul ul {
             margin-left: 30px;
         }
-
         ul ul>li:before {
             content: '' !important;
         }
-
         #container ul>li:before {
             content: '- ';
             font-size: 20px;
             vertical-align: -16%;
             line-height: 8px;
         }
-
         #container {
             float: left;
             width: calc(100% - 300px);
             padding: 30px;
             border-left: 1px solid gray;
         }
-
         h1, h2, h3, h4, h5 {
             text-transform: capitalize;
         }
-
         h1 {
             font-weight: bold;
             color: dodgerblue;
         }
-
         h2 {
             margin-top: 40px;
         }
-
         h3 {
             margin-top: 20px;
             margin-left: 15px;
         }
-
         h2, h3 {
             font-weight: 300;
         }
-
         h3+p {
             margin-left: 30px;
         }
-
         h4 {
             margin-top: 30px;
             margin-left: 30px;
         }
-
         p, pre {
             margin-left: 45px;
         }
-
         em {
             font-style: normal;
             font-weight: bold;
         }
-
-        pre {
+        code {
             white-space: pre-wrap;
-            background-color: #222;
-            color: white;
             padding: 15px 30px;
             border-radius: 5px;
         }  
-
-        .hljs-comment {
-            color: gray;
-        }
-
-        .hljs-keyword {
-            color: crimson;
-            font-weight: bold;
-        }
-
-        .hljs-built_in {
-            color: darkorange;
-            font-style: italic;
-        }
         
-        .hljs-function {
-            color: dodgerblue;
-            font-weight: bold;
+        .hljs{
+            display:block;
+            overflow-x:auto;
+            background:#F0F0F0;
         }
-        
-        .hljs-number, .hljs-string {
-            font-weight: bold;
+        .hljs,.hljs-subst{
+            color:#444
+        }
+        .hljs-comment{
+            color:#888888
+        }
+        .hljs-keyword,.hljs-attribute,.hljs-selector-tag,.hljs-meta-keyword,.hljs-doctag,.hljs-name{
+            font-weight:bold
+        }
+        .hljs-type,.hljs-string,.hljs-number,.hljs-selector-id,.hljs-selector-class,.hljs-quote,.hljs-template-tag,.hljs-deletion{
+            color:#880000
+        }
+        .hljs-title,.hljs-section{
+            color:#880000;
+            font-weight:bold
+        }
+        .hljs-regexp,.hljs-symbol,.hljs-variable,.hljs-template-variable,.hljs-link,.hljs-selector-attr,.hljs-selector-pseudo{
+            color:#BC6060
+        }
+        .hljs-literal{
+            color:#78A960
+        }
+        .hljs-meta{
+            color:#1f7199
+        }
+        .hljs-meta-string{
+            color:#4d99bf
+        }
+        .hljs-emphasis{
+            font-style:italic
+        }
+        .hljs-strong{
+            font-weight:bold
+        }
+        .hljs{
+            display:block;
+            background:#272822;
+            color:#ddd
+        }
+        .hljs-tag,.hljs-keyword,.hljs-selector-tag,.hljs-literal,.hljs-strong,.hljs-name{
+            color:#f92672
+        }
+        .hljs-code, .hljs-number {
+            color:#66d9ef
+        }
+        .hljs-class .hljs-title{
+            color:white
+        }
+        .hljs-attribute,.hljs-symbol,.hljs-regexp,.hljs-link{
+            color:#bf79db
+        }
+        .hljs-string,.hljs-bullet,.hljs-subst,.hljs-title,.hljs-section,.hljs-emphasis,.hljs-type,.hljs-built_in,.hljs-builtin-name,.hljs-selector-attr,.hljs-selector-pseudo,.hljs-addition,.hljs-variable,.hljs-template-tag,.hljs-template-variable{
+            color:#a6e22e
+        }
+        .hljs-comment,.hljs-quote,.hljs-deletion,.hljs-meta{
+            color:#75715e
+        }
+        .hljs-keyword,.hljs-selector-tag,.hljs-literal,.hljs-doctag,.hljs-title,.hljs-section,.hljs-type,.hljs-selector-id{
+            font-weight:bold
+        }
+        .hljs-built_in,.hljs-bullet,.hljs-code,.hljs-addition{
+            color: orange;
             font-style: italic;
-            color: greenyellow;
+            font-weight: normal;
         }
     </style>
+
+    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.4.0/languages/typescript.min.js"></script>
 </head>
 
 <body data-section="0">
@@ -205,34 +229,38 @@
 
     <script>
         let nav       = document.getElementById('moduleNav'),
-            container = document.getElementById('container');
-
+            container = document.getElementById('container'),
+            sections = [
+                'Graphics',
+                'Debug'
+            ],
+            loading = sections.length;
         setMenuItem('<li>Overview</li>');
 
-        [
-            'Graphics',
-            'Debug'
-        ]
-        .forEach(function(m, i) {
+        sections.forEach(function(m, i) {
             var xhttp = new XMLHttpRequest();
             xhttp.onreadystatechange = function() {
                 if (this.readyState == 4 && this.status == 200) {
-                    var start = this.responseText.indexOf('<body>') + 6,
-                        end   = this.responseText.indexOf('<\/body>');
-
                     var section = document.createElement('section');
-                    section.innerHTML = this.responseText.substring(start, end);
+                    section.innerHTML = this.responseText.replace(
+                        /(<h[0-9])>([^<]+)/gi,
+                        (m, p1, p2) => p1 + ' id="' + p2.replace(/ /g, '-').toLowerCase() + '">' + p2
+                    );
                     container.appendChild(section);
-
                     var toc = section.getElementsByTagName('ul')[0];
                     setMenuItem(toc.innerHTML);
                     section.removeChild(toc);
+
+                    loading--;
+                    if (loading === 0) {
+                        hljs.initHighlightingOnLoad();
+                        hljsAdditions();
+                    }
                 }
             }
             xhttp.open('GET', './pages/' + m + '.html', true);
             xhttp.send();
         });
-
         function setMenuItem(toc) {
             var pos = nav.childElementCount;
             var item = document.createElement('li');
@@ -241,6 +269,18 @@
             };
             item.innerHTML = toc;
             nav.appendChild(item);
+        }
+        function hljsAdditions() {
+            [].forEach.call(
+                document.getElementsByTagName('code'),
+                el => el.innerHTML = el.innerHTML.replace(
+                    /([a-z0-9_\-\]]\s*:\s*)([a-z0-9_-z]+)/gi,
+                    (m, p1, p2) => p1 + '<span class="hljs-built_in">' + p2 + '</span>'
+                ).replace(
+                    /\?|\=\&gt;/g,
+                    m => '<span class="hljs-strong">' + m + '</span>'
+                )
+            );
         }
     </script>
 </body>
