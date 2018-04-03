@@ -1,9 +1,9 @@
-* [Debug](#debug)
-    * [static variables](#static-variables)
-    * [static functions](#static-functions)
+- [Debug](#debug)
+    - [static variables](#static-variables)
+    - [static functions](#static-functions)
 
 # Debug
-```
+```ts
 import { Debug } from './Bunas';
 ```
 
@@ -15,7 +15,7 @@ When active, the debugger shows the folloing data by default:
     * The current keyboard and mouse inputs
 
 ## static variables
-```typescript
+```ts
 fontSize    : number  = 14;
 color       : string  = 'orangered';
 defaults    : {[name: string] : boolean} = {
@@ -27,19 +27,19 @@ defaults    : {[name: string] : boolean} = {
 *defaults* is an object containing game properties that an be logged to the screen. Setting each parameters' value will toggle it on and off.
 
 ## static functions
-```typescript
+```ts
 toggle( state: boolean ): void
 ```
 Displays the debugger on when *state === true* or hides it if is *state === false*. If state is not provided, debugger is toggled from whatever its current state is.
 
-```typescript
+```ts
 log( data: any, persist = true): void
 ```
 This will log whatever data is inputted to the screen.
 The *data* input will be converted to a tab seperated JSON string before displaying, allowing any variables or nested objects to be logged.
 If *persist* is set to false, the data entry will be cleared after one frame. This allowes changing variables to be logged continuously on a single line in the debugger.
 
-```typescript
+```ts
 clear(): void
 ```
 Clears all data from the log.

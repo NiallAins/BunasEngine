@@ -1,22 +1,22 @@
-* [Graphics](#graphics)
-    * [Types](#types)
-        * [Keyframe](#keyframe)
-        * [keyframe set](#keyframe-set)
-        * [draw function](#draw-function)
-        * [sprite state](#sprite-state)
-    * [Interaces](#interaces)
-        * [ISprite](#isprite)
-    * [Easing functions](#easing-functions)
-    * [Classes](#classes)
-        * [Vector Sprite](#vector-sprite)
-            * [constructor](#constructor)
-            * [public variables](#public-variables)
-            * [methods](#methods)
-            * [Example Code](#example-code)
-        * [Dynamic Vector Sprite](#dynamic-vector-sprite)
+- [Graphics](#graphics)
+    - [Types](#types)
+        - [Keyframe](#keyframe)
+        - [keyframe set](#keyframe-set)
+        - [draw function](#draw-function)
+        - [sprite state](#sprite-state)
+    - [Interaces](#interaces)
+        - [ISprite](#isprite)
+    - [Easing functions](#easing-functions)
+    - [Classes](#classes)
+        - [Vector Sprite](#vector-sprite)
+            - [constructor](#constructor)
+            - [public variables](#public-variables)
+            - [methods](#methods)
+            - [Example Code](#example-code)
+        - [Dynamic Vector Sprite](#dynamic-vector-sprite)
 
 # Graphics
-```typescript
+```ts
 import { Graphics } from './Bunas';
 ```
 This module provides method for rendering imagagry to the canvas during your game. This can include anything from genreating animated sprites from sprite sheets or vector descriptions, background images, tile sets or GUI features needed for your project, such as menus and heads-up displays.
@@ -24,7 +24,7 @@ This module provides method for rendering imagagry to the canvas during your gam
 ## Types
 
 ### Keyframe
-```typescript
+```ts
 type keyframe = number | number[] | number[][] | (number | string)[][];
 
 let a : keyframe = 5,
@@ -39,7 +39,7 @@ If a you want to specific exact timings for your animation, instead of letting t
 A third string value can be added to these array values to indicate the *easing function* used between that frame and the next.
 
 ### keyframe set
-```typescript
+```ts
 type keyframeSet = { [property: string] : keyframe }
 
 let set : keyframeSet = {
@@ -51,7 +51,7 @@ A *keyframeSet* is an object where each parameter describes the *keyframe* to an
 On each animation frame, each of these properties are mapped to the single values they would have on that particular frame before being sent to a *drawFunction*.
 
 ### draw function
-```typescript
+```ts
 type drawFunction = (frame: { [property: string] : number }, ctx: CanvasRenderingContext2D)=>void
 ```
 A *draw function* is a function which executes a series of canvas drawing calls; such as *ctx.fillRect()*, *ctx.lineTo(),* etc.; to draw a vector image.
@@ -59,7 +59,7 @@ The *frame* input is an object derived from a *keyframe set*. On each frame of a
 The *ctx* input is simply the current canvas drawing context.
 
 ### sprite state
-```typescript
+```ts
 export type spriteState  = {
     duration   : number,
     elements   : { [element: string] : keyframeSet }
@@ -74,13 +74,13 @@ A sprite state is
 
 ## Interaces
 ### ISprite
-```typescript
+```ts
 interface ISprite {
-    duration: number;
-    draw: (x: number, y: number, ang: number, ctx: CanvasRenderingContext2D)=>void;
-    toggle: (play: boolean, setFrame: number)=>void;
-    reverse: ()=>void;
-    onEnd: ()=>void;
+    duration : number;
+    draw     : (x: number, y: number, ang: number, ctx: CanvasRenderingContext2D)=>void;
+    toggle   : (play: boolean, setFrame: number)=>void;
+    reverse  : ()=>void;
+    onEnd    : ()=>void;
 };
 ```
 In the *Graphics* module, serveral classes are prvided from creating differnet kinds of sprites. Each of these classes will implement the ISprite interface ensuing that regardles of the method of cration, each sprite in a *Bunas* game can b handled with the same set of functions.
@@ -126,7 +126,7 @@ When none is provided, a *sine* easing will always be used by default.
 A sprite created from a *draw function* containing a series of canvas drawing commands, and an optional *keyframe set* which describes the animation of parameters which can be used in the draw function.
 
 #### constructor
-```typescript
+```ts
 constructor(
     drawFunction :drawFunction,
     keyframeSet  :keyframeSet = null,
@@ -136,7 +136,7 @@ constructor(
 
 The *keyframe set* is an object where each key-value pair is the name of a parameter and the values of that parameters that need to be interpolated during the animation cycle. It can take any of the following forms:
 
-```typescript
+```ts
 keyframeSet = {
     //constant value for whole animation
     height : 20,
@@ -153,7 +153,7 @@ keyframeSet = {
 ```
 
 The draw function takes two inputs:
-```typescript
+```ts
 function(frame: {[propertyName] : number}, ctx: Canvas2DRenderingContext) { }
 ```
 *frame* contains a list of property values for the current animation frame. The frame object will contain the same keys as the keyframeSet but with each value mapped to its value for the current animation frame.
@@ -163,7 +163,7 @@ The sprite also takes a *duration* input, which is the number of game frames a s
 
 
 #### public variables
-```typescript
+```ts
 drawFunction :drawFunction
 keyFrameset  :keyframeSet,
 duration     :number;
@@ -176,7 +176,7 @@ onEnd        :()=>void
 *onEnd* is a function which, if set, will be called at the end of every animation cycle of the sprite.
 
 #### methods
-```typescript
+```ts
 draw(x: number, y: number, ang: number, ctx: CanvasRenderingContext2D) => void
 ```
 Draws the sprite in next frame of its animation.
@@ -185,7 +185,7 @@ Draws the sprite in next frame of its animation.
 *ctx* is the current game canvas context.
 
 
-```typescript
+```ts
 toggle(play: boolean = null, setFrame?: number)=> void
 ```
 Pauses or resumes the animation of the sprite. When paused, each call to draw() will render the sprite but will not increment its animation frame.
@@ -193,13 +193,13 @@ If *play* is true, the animation will play; false, it will pause; unset it will 
 *setFrame* can be set to a value between 0 and 1 to set the animation frame of the sprite before pausing / resuming.
 
 
-```typescript
+```ts
 reverse()=> void
 ```
 Reverses the direction of the play of the animation cycle.
 
 #### Example Code
-```typescript
+```ts
 //Static sprite
 drawFunction = () => ctx.fillRect(0, 0, 200, 100);
 
@@ -227,6 +227,6 @@ sprite.draw(100, 100, 0, ctx);
 This class allows you to define several elements which make up a sprite, differnet states the sprite can exist in an differnet animated actions the sprite can perform.
 You can then trigger the sprite to change elements, states or perform actions with each animation eaing smoothly with the next.
 
-```typescript
+```ts
 
 ```
