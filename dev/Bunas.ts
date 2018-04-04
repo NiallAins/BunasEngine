@@ -1,88 +1,144 @@
 //
-//  CORE ENGINE
+//  Interfaces
+//
+export class GameObject {
+    public area;
+
+    constructor(
+        public x : number,
+        public y : number,
+        public z : number = 0,
+        public clipRadius : number = 0
+    ) {
+        if (!World.globalArea) {
+            World.globalArea = new World.Area();
+            World.globalArea.open();
+        }
+        World.globalArea.addObject(this);
+    }
+
+    public startStep (delta: number): void {};
+    public step      (delta: number): void {}
+    public endStep   (delta: number): void {};
+
+    public startDraw (ctx: CanvasRenderingContext2D, delta: number): void {};
+    public draw      (ctx: CanvasRenderingContext2D, delta: number): void {};
+    public endDraw   (ctx: CanvasRenderingContext2D, delta: number): void {};
+}
+
+//
+// Module: Core Engine
 //
 export module Engine {
-    export interface GameObject {
-        x  : number;
-        y  : number;
-        z? : number;
-
-        step(delta: number): void;
-        draw(ctx: CanvasRenderingContext2D, delta: number): void;
-
-        startStep?(delta: number): void;
-        endStep?(delta: number): void;
-
-        startDraw?(ctx: CanvasRenderingContext2D, delta: number): void;
-        endDraw?(ctx: CanvasRenderingContext2D, delta: number): void;
-    }
-
+    //
+    // Types
+    //
     export type AssetList = {
-        sprites : object;
-        sounds  : object;
-        bgs     : object;
+        sprites : { [name : string] : string | HTMLImageElement };
+        sounds  : { [name : string] : string | HTMLImageElement };
+        bgs     : { [name : string] : string | HTMLAudioElement };
     }
 
-    //Lifecycle hooks
+    //
+    // Public Variables
+    //
     export let
-        step     : Function = ()=>{},
-        postStep : Function = ()=>{};
-
-    //Enviroment variables
-    let
-        can      : HTMLCanvasElement,
-        ctx      : CanvasRenderingContext2D,
-        dT       : number = 0,
-        currentT : number = +new Date(),
-        frameDur : number,
-        exBind   : Function;
-    export let
+        preStep  : ()=>void = ()=>{},
+        postStep : ()=>void = ()=>{},
+        preDraw  : ()=>void = ()=>{},
+        postDraw : ()=>void = ()=>{},
         cW : number,
         cH : number;
-    export function getDelta() { return dT; };
-
-    //Game variables
-    let assets : AssetList,
-        objs   : GameObject[] = [];
-    export function getAssets() { return assets; }
-    export function getObjects() { return objs; }
 
     //
-    // Engine Entry Point
+    // Setters / Getters
     //
+    
+    export function getDelta()    : number            {return dT; }
+    export function getCanvasEl() : HTMLCanvasElement { return can; }
+    export function getAssets()   : AssetList         { return assets; }
+
+    //
+    // Process: Initalisation
+    // public method = init
+    //
+    let
+        initDone  : boolean = false,
+        delayInit : ()=>void = null,
+        delayLoad : ()=>void = null,
+        can       : HTMLCanvasElement,
+        ctx       : CanvasRenderingContext2D,
+        dT        : number = 0,
+        currentT  : number = +new Date(),
+        frameDur  : number,
+        exBind    : Function,
+        assets    : AssetList;
+
+    document.onreadystatechange = function() {
+        if (document.readyState === "complete") {
+            if (delayInit) {
+                delayInit();
+            }
+            if (delayLoad) {
+                delayLoad();
+            }
+        }
+    }
+
     export function init(
-        canIn, 
-        _exBind: Function,
-        _cW: number = window.innerWidth,
-        _cH: number = window.innerHeight,
-        targetFPS: number = 30
+        canId     : string, 
+        _exBind   : Function,
+        _cW       : number = window.innerWidth,
+        _cH       : number = window.innerHeight,
+        targetFPS : number = 30
     ): void {
-        can = <HTMLCanvasElement> canIn;
-        cW = _cW;
-        cH = _cH;
-        can.width  = cW;
-        can.height = cH;
-        ctx = can.getContext('2d');
+        if (document.readyState !== "complete") {
+            delayInit = init.bind(null, canId, _exBind, _cW, _cH, targetFPS);
+            return;
+        } else {
+            delayInit = null;
+        }
 
-        //Help prevent anti-alising
+        can         = <HTMLCanvasElement> document.getElementById(canId);
+        cW          = _cW;
+        cH          = _cH;
+        can.width   = cW;
+        can.height  = cH;
+        ctx         = can.getContext('2d');
+
         ctx.translate(0.5, 0.5);
-
         exBind = _exBind;
-        Input.bindToWindow();
+        Input.init();
         frameDur = 1000 / targetFPS;
+
+        initDone = true;
     }
 
     //
-    // Asset Loader
+    // Process: Asset Loading
+    // public method = load
     //
-    let loading: number = 0,
-        assetTotal: number,
-        externalCallback: Function,
-        spriteLoader: any,
-        soundLoader: any,
-        bgLoader: any;
+    let loading           : number = 0,
+        assetTotal        : number,
+        externalCallback  : Function,
+        spriteLoader      : any,
+        soundLoader       : any,
+        bgLoader          : any;
 
-    export function load(_assets: AssetList, _externalCallback: Function): void {
+    export function load(
+        _assets            : AssetList,
+        _externalCallback  : ()=>void,
+        loadingDrawFunc?   : (fractionLoaded: number)=>void
+    ) : void {
+        if (document.readyState !== "complete") {
+            delayLoad = load.bind(null, _assets, _externalCallback, loadingDrawFunc);
+            return;
+        }
+        delayLoad = null;
+
+        if (!initDone) {
+            throw 'Loading Error: Engine has not been initalized. "load()" call must be preceded by a call to "init()"';
+        }
         spriteLoader = _assets.sprites;
         soundLoader  = _assets.sounds;
         bgLoader     = _assets.bgs;
@@ -92,24 +148,30 @@ export module Engine {
                      Object.keys(soundLoader).length +
                      Object.keys(bgLoader).length;
         assetLoader();
-        drawLoadScreen();
+        
+        advanceLoading(
+            loadingDrawFunc ||
+            function(fractionLoaded) {
+                ctx.strokeStyle = '#fff';
+                ctx.fillStyle = '#fff';
+                ctx.lineWidth = 10;
+                ctx.beginPath();
+                    ctx.arc(
+                        625, 295, 140,
+                        (-Math.PI / 2),
+                        (-Math.PI / 2) + ((Math.PI * 2) * (1 - fractionLoaded)),
+                        false
+                    );
+                ctx.stroke();
+            }
+        );
     }
 
-    function drawLoadScreen(): void {
+    function advanceLoading(loadScreen: (completion: number)=>void): void {
         if (loading > 0) {
             ctx.clearRect(0, 0, cW, cH);
-            ctx.strokeStyle = '#fff';
-            ctx.fillStyle = '#fff';
-            ctx.lineWidth = 10;
-            ctx.beginPath();
-                ctx.arc(
-                    625, 295, 140,
-                    (-Math.PI / 2),
-                    (-Math.PI / 2) + ((Math.PI * 2) * (1 - (loading / assetTotal))),
-                    false
-                );
-            ctx.stroke();
-            window.requestAnimationFrame(drawLoadScreen.bind(this));
+            loadScreen(loading / assetTotal);
+            window.requestAnimationFrame(advanceLoading.bind(this));
         } else {
             assets = {
                 sprites : spriteLoader,
@@ -151,6 +213,9 @@ export module Engine {
         }
     }
 
+    //
+    // Process: Engine Lifecycle
+    //
     function initLoop(externalCallback): void {
         externalCallback.call(exBind);
         loop();
@@ -162,71 +227,40 @@ export module Engine {
             dT = (newT - currentT) / frameDur;
             currentT = newT;
 
-            step.call(exBind);
-
-            for (let i = 0, len = objs.length; i < len; i += 1) {
-                if (objs[i].startStep) {
-                    objs[i].startStep(dT);
-                }
-            }
-            for (let i = 0, len = objs.length; i < len; i += 1) {
-                objs[i].step(dT);
-            }
-            for (let i = 0, len = objs.length; i < len; i += 1) {
-                if (objs[i].endStep) {
-                    objs[i].endStep(dT);
-                }
-            }
-
-            ctx.clearRect(-1, -1, cW + 1, cH + 1);
-            for (let i = 0, len = objs.length; i < len; i += 1) {
-                if (objs[i].startDraw) {
-                    objs[i].startDraw(ctx, dT);
-                }
-            }
-            for (let i = 0, len = objs.length; i < len; i += 1) {
-                objs[i].draw(ctx, dT);
-            }
-            for (let i = 0, len = objs.length; i < len; i += 1) {
-                if (objs[i].endDraw) {
-                    objs[i].endDraw(ctx, dT)
-                } 
-            }
-
-            Debug.draw(ctx);
-
+            preStep.call(exBind);
+            World.step(dT);
             postStep.call(exBind);
+
+            preDraw.call(exBind);
+            ctx.clearRect(-1, -1, cW + 1, cH + 1);
+            World.draw(ctx, dT);
+            Debug.draw(ctx);
+            Input.drawCursor(ctx, dT);
+            postDraw.call(exBind);
 
             Input.clear();
             window.requestAnimationFrame(loop.bind(this));
         }, frameDur - (+new Date()) + currentT);
-    } 
-
-    export function addObject(obj: GameObject): void {
-        if (!obj.z) {
-            obj.z = 0;
-        }
-        for(let i = 0, len = objs.length; i < len; i++) {
-            if (obj.z > objs[i].z) {
-                objs.splice(i, 0, obj);
-                return;
-            }
-        }
-        objs.push(obj);
     }
 }
 
+//
+// Module: Debugger
+//
 export module Debug {
-    let show    : boolean = false,
-        prevT   : number = 0,
-        dT      : string = '1.000',
-        logs    : string[] = [],
-        permLog : string[] = [],
+    //
+    // Private Variables
+    //
+    let show       : boolean = false,
+        prevT      : number = 0,
+        dT         : string = '1.000',
+        logs       : string[] = [],
+        permLog    : string[] = [],
+        container  : HTMLDivElement = document.createElement('div'),
+        output     : HTMLPreElement = document.createElement('pre'),
         dTInterval = setInterval(function() {
             dT = Engine.getDelta().toFixed(3).toString();
-        }, 500),
-        container  : HTMLDivElement = document.createElement('div'),
-        output     : HTMLPreElement = document.createElement('pre');
+        }, 500);
     
     container.setAttribute('style', `
         position: fixed;
@@ -239,31 +273,37 @@ export module Debug {
     `);
     container.appendChild(output);
 
+    //
+    // Public Variables
+    //
     export let
-        fontSize   : number = 14,
-        color      : string = 'orangered',
-        defaultOptions : object = {
+        fontSize        : number = 14,
+        color           : string = 'orangered',
+        defaultOptions  : {[option: string] : boolean} = {
             dt: true, 
             input : true
         }
 
-    export function toggle(state?) {
+    //
+    // Public Methods
+    //
+    export function toggle(state?): void {
         if (state !== show) {
             show = state === undefined ? !show : state;
             show ? document.body.appendChild(container) : document.body.removeChild(container);
         }
     }
 
-    export function log(data: any, persist = true) {
+    export function log(data: any, persist = true): void {
         let entry = JSON.stringify(data, null, '\t');
         persist ? permLog.push(entry) : logs.push(entry);
     }
 
-    export function clear() {
+    export function clear(): void {
         permLog = [];
     }
 
-    export function draw(ctx: CanvasRenderingContext2D) {
+    export function draw(ctx: CanvasRenderingContext2D): void {
         output.setAttribute('style', `
             font-size: ${fontSize};
             color: ${color};
@@ -274,12 +314,10 @@ export module Debug {
 
         output.innerHTML = '';
         if (defaultOptions['dt']) {
-            output.innerHTML += `dT    : ${dT}
-`;
+            output.innerHTML += `dT    : ${dT}<br/>`;
         }
         if (defaultOptions['input']) {
-            output.innerHTML += `Input : ${getInputData()}
-`;
+            output.innerHTML += `Input : ${getInputData()}<br/>`;
         }
         output.innerHTML += permLog.concat(logs).join('<br/>');
 
@@ -287,6 +325,9 @@ export module Debug {
         logs = [];
     }
 
+    //
+    // Private Methods
+    //
     function getInputData(): string {
         return `keyPressed = [${Input.key.pressed.join(', ')}]
         mouseState =
@@ -313,13 +354,14 @@ export module Debug {
     
 }
 
-
 //
-// INPUT LISTENER
-// Easy interface for reading keyboard and mouse inputs
+// Module: Input Listener
 //
 export module Input {
-    export interface Point {
+    //
+    // Types / Interfaces
+    //
+    type Point = {
         x : number;
         y : number;
     }
@@ -347,66 +389,89 @@ export module Input {
         dragPts    : Point[];
     }
 
+    //
+    // Private Variables
+    //
     const clickCode: string[] = ['left', 'middle', 'right'];
     let dragCheck = {
-        tolerance : 40,
-        originX   : 0,
-        originY   : 0,
-        dragPts   : []
-    };
-
-    export let mouse: Mouse = {
-        x:    0,
-        y:    0,
-        left: {
-            down       : false,
-            up         : false,
-            doubleUp   : false,
-            pressed    : false,
-            drag       : false,
-            startDrag  : false,
-            endDrag    : false,
-            dragging   : false,
-            dragPts    : []
+            tolerance : 40,
+            originX   : 0,
+            originY   : 0,
+            dragPts   : []
         },
-        right: {
-            down       : false,
-            up         : false,
-            doubleUp   : false,
-            pressed    : false,
-            drag       : false,
-            startDrag  : false,
-            endDrag    : false,
-            dragging   : false,
-            dragPts    : []
-        }
-    };
+        dblClickWait : number = 500,
+        customCursor : (ctx: CanvasRenderingContext2D, delta: number) => void;
 
-    export let key: KeyBoard = {
-        up      : null,
-        down    : null,
-        pressed : []
-    };
-    
-    let dblClickWait : number = 500;
-    function setdoubleClickWait(v: number): void {
+    //
+    // Public Variables
+    //
+    export
+        let mouse: Mouse = {
+            x:    0,
+            y:    0,
+            left: {
+                down       : false,
+                up         : false,
+                doubleUp   : false,
+                pressed    : false,
+                drag       : false,
+                startDrag  : false,
+                endDrag    : false,
+                dragging   : false,
+                dragPts    : []
+            },
+            right: {
+                down       : false,
+                up         : false,
+                doubleUp   : false,
+                pressed    : false,
+                drag       : false,
+                startDrag  : false,
+                endDrag    : false,
+                dragging   : false,
+                dragPts    : []
+            }
+        },
+
+        key: KeyBoard = {
+            up      : null,
+            down    : null,
+            pressed : []
+        };
+
+    //
+    // Setters / Getters
+    //
+    export function setDragTolerance(tolerance: number): void {
+        dragCheck.tolerance = tolerance;
+    }
+
+    export function setdoubleClickWait(v: number): void {
         dblClickWait = v;
     }
 
-    export function bindToWindow(): void {
-        //Bind to window mouse events
+    //
+    // Public Methods
+    //
+    export function init(): void {
         window.addEventListener('mousemove', onMouseMove.bind(this));
         window.addEventListener('mousedown', onMouseDown.bind(this));
         window.addEventListener('mouseup'  , onMouseUp.bind(this));
 
-        //Bind to window keyboard events
         window.onkeydown = onKeyDown.bind(this);
         window.onkeyup   = onKeyUp.bind(this);
 
         toggleContextMenu(false);
     }
 
-    //Toggle browser right click menu (disabled by default)
+    export function clear(): void {
+        resetMouseButton(mouse.left);
+        resetMouseButton(mouse.right);
+
+        key.down = null;
+        key.up   = null;
+    }
+
     export function toggleContextMenu(show = true): void {
         if (show) {
             window.oncontextmenu = function (e) { };
@@ -417,32 +482,56 @@ export module Input {
         }
     }
 
-    export function setDragTolerance(tolerance: number): void {
-        dragCheck.tolerance = tolerance;
+    export function checkKey(...keys: string[]): boolean | object {
+        return keys.some(k => key.pressed.indexOf(k) !== -1);
     }
 
-    //Clear key and mouse events
-    export function clear(): void {
-        resetMouseButton(mouse.left);
-        resetMouseButton(mouse.right);
-
-        key.down = null;
-        key.up   = null;
-    }
-        function resetMouseButton(b: MouseButton): void {
-            b.down       = false;
-            b.up         = false;
-            b.doubleUp   = false;
-            b.drag       = false;
-            b.startDrag  = false;
-            b.endDrag    = false;
+    export function setCursor(cursor: (ctx: CanvasRenderingContext2D, delta: number)=>void | string) {
+        if (typeof cursor === 'string') {
+            (Engine.getCanvasEl() as HTMLElement).style.cursor = cursor;
+        } else {
+            (Engine.getCanvasEl() as HTMLElement).style.cursor = 'none';
+            customCursor = cursor;
         }
+    }
 
+    export function drawCursor(ctx: CanvasRenderingContext2D, delta: number) {
+        if (customCursor) {
+            ctx.save();
+                ctx.translate(mouse.x, mouse.y);
+                customCursor(ctx, delta);
+            ctx.restore();
+        }
+    }
+
+    //
+    // Private Methods
+    //
     function onMouseDown(e: MouseEvent): void {
         dragCheck.originX = e.clientX;
         dragCheck.originY = e.clientY;
         mouse[clickCode[e.button]].pressed = true;
         mouse[clickCode[e.button]].down    = true;
+    }
+
+    function onMouseUp(e: MouseEvent): void {
+        let b = mouse[clickCode[e.button]];
+
+        b.pressed = false;
+        b.up      = true;
+
+        if (b.dragging) {
+            b.endDrag  = true;
+            b.dragging = false;
+        }
+
+        if (b.dblCheck) {
+            b.doubleUp = true; 
+            b.dblCheck = false;
+        } else {
+            b.dblCheck = true;
+            setTimeout(() => b.dblCheck = false, dblClickWait);
+        }
     }
 
     function onMouseMove(e: MouseEvent): void {
@@ -482,24 +571,13 @@ export module Input {
         }
     }
 
-    function onMouseUp(e: MouseEvent): void {
-        let b = mouse[clickCode[e.button]];
-
-        b.pressed = false;
-        b.up      = true;
-
-        if (b.dragging) {
-            b.endDrag  = true;
-            b.dragging = false;
-        }
-
-        if (b.dblCheck) {
-            b.doubleUp = true; 
-            b.dblCheck = false;
-        } else {
-            b.dblCheck = true;
-            setTimeout(() => b.dblCheck = false, dblClickWait);
-        }
+    function resetMouseButton(b: MouseButton): void {
+        b.down       = false;
+        b.up         = false;
+        b.doubleUp   = false;
+        b.drag       = false;
+        b.startDrag  = false;
+        b.endDrag    = false;
     }
 
     function onKeyDown(e: KeyboardEvent): void {
@@ -515,19 +593,15 @@ export module Input {
         key.up = keyName;
         key.pressed.splice(key.pressed.indexOf(keyName), 1);
     }
-
-    //Helper Functions
-    export function checkKey(...keys: string[]): boolean | object {
-        return keys.some(k => key.pressed.indexOf(k) !== -1);
-    }
 }
 
-
 //
-//  GRAPHICS
-//  Generates and animates sprite sheets from imges or canvas draw functions
+// Module: Graphics
 //
 export module Graphics {
+    //
+    // Types / Interfaces
+    //
     export type keyframe     = number | number[] | number[][] | (number | string)[][];
     export type keyframeSet  = { [property: string] : keyframe }
     export type drawFunction = (frame: { [property: string] : number }, ctx: CanvasRenderingContext2D)=>void
@@ -541,7 +615,7 @@ export module Graphics {
         onEnd?     : ()=>void
     }
 
-    interface ISprite {
+    export interface ISprite {
         duration: number;
         draw: (x: number, y: number, ang: number, ctx: CanvasRenderingContext2D)=>void;
         toggle: (play: boolean, setFrame: number)=>void;
@@ -549,12 +623,15 @@ export module Graphics {
         onEnd: ()=>void;
     };
 
+    //
+    // Class: Bitmap Sprite
+    //
     export class Sprite implements ISprite {
         public width      : number;
         public height     : number;
-        private frCurrent : number = 0;
         public duration   : number;
         public onEnd      : ()=>void = ()=>{};
+        private frCurrent : number = 0;
 
         constructor(
             private sprite  : HTMLImageElement,
@@ -599,6 +676,9 @@ export module Graphics {
         }
     }
 
+    //
+    // Class: Vector Sprite
+    //
     export class VectorSprite implements ISprite {
         public fr        : number = 0;
         public onEnd     : () => void = () => {};
@@ -642,15 +722,18 @@ export module Graphics {
         }
     }
 
+    //
+    // Class: Dynamic Vector Sprite
+    //
     export class DynamicVectorSprite implements ISprite {
-        public  fr        : number = 0;
-        public  duration  : number;
-        public  onEnd     : ()=>void = ()=>{};
+        public fr        : number = 0;
+        public duration  : number;
+        public onEnd     : ()=>void = ()=>{};
         public currentState  : string;
         public currentAction : string;
-        private state     : spriteState;
-        private action    : spriteState = null;
-        private isPaused  : boolean = false;
+        private state    : spriteState;
+        private action   : spriteState = null;
+        private isPaused : boolean = false;
 
         constructor(
             public elements : { [element: string] : drawFunction },
@@ -824,7 +907,9 @@ export module Graphics {
         }
     }
 
-
+    //
+    // Private Methods
+    //
     function tween(keyframeSet : keyframeSet, currentFrame : number): {[param : string] : number} {
         let params = {};
         for (let key in keyframeSet) {
@@ -862,6 +947,9 @@ export module Graphics {
         return Easings[start[2] || 'sine'](currentFrame - start[0], start[1], end[1] - start[1], frameDiff);
     }
 
+    //
+    // Easing Functions
+    //
     const Easings = {
         linear:     (t, b, c, d) => b + (c * (t / d)),
         sine:       (t, b, c, d) => -c/2 * (Math.cos(Math.PI*t/d) - 1) + b,
@@ -929,20 +1017,213 @@ export module Graphics {
     };
 }
 
+//
+// Module: World and Area Creator
+//
+export module World {
+    //
+    // Class: Area
+    //
+    export class Area {
+        public objs  : GameObject[] = [];
+        public views : View[] = [];
+        private active : boolean = false;
+
+        constructor(
+            public width      : number = -1, 
+            public height     : number = -1,
+            public initState : ()=>void = ()=>{},
+            public onOpen     : ()=>void = ()=>{},
+            public onClose    : ()=>void = ()=>{},
+            private persist   : boolean = false,
+            view?             : View
+        ) {
+            if (!view) {
+                this.addView(new View(0, 0, 1));
+            }
+        }
+
+        public open() {
+            if (!this.active) {
+                this.initState();
+                this.views.forEach(v => v.reset());
+                this.active = true;
+            }
+            areas.push(this);
+            this.onOpen();
+        }
+
+        public close() {
+            if (!this.persist) {
+                this.active = false;
+                this.objs = [];
+            }
+            areas.splice(1, areas.indexOf(this))
+            this.onClose();
+        }
+
+        public addObject(o: GameObject): void {
+            if (!o.z) {
+                o.z = 0;
+            }
+            for(let i = 0, len = this.objs.length; i < len; i++) {
+                if (o.z > this.objs[i].z) {
+                    this.objs.splice(i, 0, o);
+                    return;
+                }
+            }
+            this.objs.push(o);
+            o.area = this;
+        }
+
+        public addView(v: View): number {
+            this.views.push(v);
+            return this.views.length;
+        }
+
+        public removeView(v: View): number {
+            this.views.splice(1, this.views.indexOf(v));
+            return this.views.length;
+        }
+
+        public togglePersistance(state?) {
+            this.persist = state === undefined ? this.persist = !this.persist : state;
+            if (!this.persist && !this.active) {
+                this.objs = [];
+            }
+        }
+    }
+
+    //
+    // Class: View Port
+    //
+    export class View {
+        private init_x       : number;
+        private init_y       : number;
+        private init_z       : number;
+        private init_width?  : number;
+        private init_height? : number;
+        private init_canX    : number;
+        private init_canY    : number;
+        private init_canZ    : number;
+        
+        constructor(
+            public x      : number = 0,
+            public y      : number = 0,
+            public z      : number = 1,
+            public ang    : number = 0, 
+            public width  : number = Engine.cW,
+            public height : number = Engine.cH,
+            public canX   : number = 0,
+            public canY   : number = 0,
+            public canZ   : number = 0
+        ) {
+            this.init_x       = x;
+            this.init_y       = y;
+            this.init_z       = z;
+            this.init_width   = width;
+            this.init_height  = height;
+            this.init_canX    = canX;
+            this.init_canY    = canY;
+            this.init_canZ    = canZ;
+        }
+
+        public translate(dx : number, dy : number) {
+            this.x += dx;
+            this.y += dy;
+        }
+
+        public zoom(dz : number) {
+            this.z *= dz;
+        }
+
+        public reset() {
+            this.x      = this.init_x;
+            this.y      = this.init_y;
+            this.z      = this.init_z;
+            this.width  = this.init_width;
+            this.height = this.init_height;
+            this.canX   = this.init_canX;
+            this.canY   = this.init_canY;
+            this.canZ   = this.init_canZ;
+        }
+    }
+
+    //
+    // Public Variables
+    //
+    export let globalArea: Area;
+
+    //
+    // Private Variables
+    //
+    let areas       : Area[] = [],
+        activeObjs  : GameObject[];
+
+    //
+    // Public Methods
+    //
+    export function step(dT: number) {
+        activeObjs = areas.reduce((t, a) => t.concat(a.objs), []);
+
+        for (let i = 0, len = activeObjs.length; i < len; i += 1) {
+            activeObjs[i].startStep(dT);
+        }
+        for (let i = 0, len = activeObjs.length; i < len; i += 1) {
+            activeObjs[i].step(dT);
+        }
+        for (let i = 0, len = activeObjs.length; i < len; i += 1) {
+            activeObjs[i].endStep(dT);
+        }
+    }
+
+    export function draw(ctx: CanvasRenderingContext2D, dT: number) {
+        areas
+            .reduce((t, a) => t.concat(a.views), [])
+            .forEach(v => {
+                let visibleObjs = activeObjs.filter(o =>
+                    o.clipRadius < 0 || (
+                        o.x + o.clipRadius > v.x &&
+                        o.x - o.clipRadius < v.x + v.width &&
+                        o.y + o.clipRadius > v.y &&
+                        o.y - o.clipRadius < v.y + v.height
+                    )
+                );
+
+                ctx.save();
+                    ctx.translate(v.width, v.height);
+                    ctx.rotate(v.ang);
+                    ctx.translate(v.x - v.width, v.y - v.height);
+
+                    for (let i = 0, len = visibleObjs.length; i < len; i += 1) {
+                        visibleObjs[i].startDraw(ctx, dT);
+                    }
+                    for (let i = 0, len = visibleObjs.length; i < len; i += 1) {
+                        visibleObjs[i].draw(ctx, dT);
+                    }
+                    for (let i = 0, len = visibleObjs.length; i < len; i += 1) {
+                        visibleObjs[i].endDraw(ctx, dT);
+                    }
+                ctx.restore();
+            });
+    }
+    
+    export function goTo(a: Area, replace: boolean= true) {
+        if (replace) {
+            areas.forEach(act => act.close());
+        }
+        a.open();
+    }
+}
+
+//
+// Module: Physics Simulator
+//
 export module Physics {
-	export class Context {
-		private objs: Particle[] = [];
-
-		constructor(
-			public fric: number = 1
-		) { }
-
-		public addParticle(p: Particle) {
-			this.objs.push(p);
-		}
-	}
-
-	export class Vector {
+    //
+    // Class: Vector
+    //
+	export class Vec {
 		public x: number;
 		public y: number;
 
@@ -974,34 +1255,34 @@ export module Physics {
 			return Math.sqrt((this.x * this.x) + (this.y * this.y));
 		}
 
-		public getNorm(): Vector {
+		public getNorm(): Vec {
 			let ang = this.getAng();
-			return new Vector(Math.cos(ang), Math.sin(ang));
+			return new Vec(Math.cos(ang), Math.sin(ang));
 		}
 
-		public add(v: Vector): Vector {
-			return new Vector(this.x + v.x, this.y +  v.y);
+		public add(v: Vec): Vec {
+			return new Vec(this.x + v.x, this.y +  v.y);
 		}
 
-		public sub(v: Vector): Vector {
-			return new Vector(this.x - v.x, this.y -v.y);
+		public sub(v: Vec): Vec {
+			return new Vec(this.x - v.x, this.y -v.y);
 		}
 
-		public scale(s: number): Vector {
-			return new Vector(this.x * s, this.y * s);
+		public scale(s: number): Vec {
+			return new Vec(this.x * s, this.y * s);
 		}
 
-		public dot(v:Vector): number {
+		public dot(v:Vec): number {
 			return (this.x * v.x) + (this.y * v.y)
 		}
 
-		public dis(v:Vector): number {
+		public dis(v:Vec): number {
 			let a = (v.x - this.x) * (v.x - this.x);
 			let b = (v.y - this.y) * (v.y - this.y);
 			return Math.sqrt(a + b);
 		}
 
-		public angWith(v:Vector): number {
+		public angWith(v:Vec): number {
 			return Math.atan2(v.y - this.y, v.x - this.x);
 		}
 
@@ -1014,96 +1295,141 @@ export module Physics {
 			return ('Pos: ' + pos + '\nMag: ' + mag + '\nAng: ' + angR + ' rads / ' + angD + '°');
 		}
 
-		public clone(): Vector {
-			return new Vector(this.x, this.y);
+		public clone(): Vec {
+			return new Vec(this.x, this.y);
+		}
+    }
+    
+    //
+    // Class: Physics Context
+    //
+	export class Context {
+        private objs: Particle[] = [];
+        public  grav: Vec;
+
+		constructor(
+            public fric: number = 0,
+            gravity: boolean | number | Vec = false
+		) {
+            if (gravity === true) {               
+                this.grav = new Vec(0, GRAV);
+            } else if (typeof gravity === 'number') {
+                this.grav = new Vec(0, gravity);
+            } else {
+                this.grav = gravity as Vec;
+            }
+        }
+
+		public addParticle(p: Particle): Particle {
+            this.objs.push(p);
+            p.phyCtx = this;
+            return p;
 		}
 	}
 
-	export abstract class Particle {
-		public p: Vector;
-		public v: Vector = new Vector(0, 0);
-		public a: Vector = new Vector(0, 0);
-		public f: Vector = new Vector(0, 0);
+    //
+    // Class: Particle Object
+    //
+	export class Particle extends GameObject {
+		public p: Vec;
+		public v: Vec = new Vec(0, 0);
+        public f: Vec = new Vec(0, 0);
+        public phyCtx: Context;
 
 		constructor(
-			private PhyCtx: Context,
-			public x: number,
-			public y: number,
-			public rad: number,
-			public m: number = rad / 2,
-			public fric: number = 0.3,
-			public el: number = 0.5
+			public x    : number,
+			public y    : number,
+            public rad  : number,
+			public m    : number = rad / 2,
+			public fric : number = 0,
+			public el   : number = 0.5
 		) {
-			this.PhyCtx.addParticle(this);
-			this.p = new Vector(x, y);
+            super(x, y, 0, rad);
+            this.p = new Vec(x, y);
+            
+            if (!globalCtx) {
+                globalCtx = new Context();
+            }
+            globalCtx.addParticle(this);
 		}
 
 		public step(delta) {
-			let friction: Vector = this.v.clone();
-			friction.setAng((friction.getAng() + Math.PI) % (2 * Math.PI));
-			friction = friction.scale(this.m * this.PhyCtx.fric * this.fric);
-			this.f = this.f.add(friction);
+            if (this.phyCtx.grav) {
+                this.applyForce(this.phyCtx.grav);
+            }
 
-			//Euler Integration -> F = MA
-			this.f = this.f.add(this.a);
+            let friction: Vec = this.v.clone();
+            friction.setAng((friction.getAng() + Math.PI) % (2 * Math.PI));
+            friction = friction.scale(this.m * this.phyCtx.fric * this.fric);
+            this.f = this.f.add(friction);
 
-            //Scale for FPS lag
+            this.p.x %= Engine.cW;
+            this.p.y %= Engine.cH;
+
             this.f.scale(delta);
 
-			this.a = this.f.scale((1 / this.m));
-			this.v = this.v.add(this.a);
-			if (this.v.getMag() > 0.1) {
-				this.p = this.p.add(this.v);
-				this.x = this.p.x;
-				this.y = this.p.y;
-			} else if (this.v.getMag() !== 0) {
-				this.v = new Vector(0, 0);
-			}
+            this.v = this.v.add(this.f);
+            if (this.v.getMag() > 0.1) {
+                this.p = this.p.add(this.v);
+                this.x = this.p.x;
+                this.y = this.p.y;
+            } else if (this.v.getMag() !== 0) {
+                this.v = new Vec(0, 0);
+            }
 
-			//Reset f for next step
-			this.f = new Vector(0, 0);
+            this.f = new Vec(0, 0);
 
-			this.collisionCheck();
-		}
+            this.collisionAndBounce();
+        }
+        
+        public draw(ctx, dT) {
+            ctx.beginPath();
+                ctx.fillStyle = 'dodgerblue';
+                ctx.arc(this.p.x, this.p.y, this.rad - 2, 0, TAU);
+            ctx.fill();
+        }
 
-		public applyForce(F) {
+		public applyForce(F: Vec) {
 			this.f = this.f.add(F);
-		}
+        }
 
-		private collisionCheck = function() {
-			for (let i = 0, len = this.PhyCtx.objs.length; i < len; i++) {
-				if ((this.PhyCtx.objs[i] != this) &&
-					((this.p.dis(this.PhyCtx.objs[i].p) - (this.rad + this.PhyCtx.objs[i].rad) < 0))
+		private collisionAndBounce = function() {
+			for (let i = 0, len = this.phyCtx.objs.length; i < len; i++) {
+				if ((this.phyCtx.objs[i] != this) &&
+					((this.p.dis(this.phyCtx.objs[i].p) - (this.rad + this.phyCtx.objs[i].rad) < 0))
 				) {
-					//Get the minimum translation distance
-					let delta: Vector = this.p.sub(this.PhyCtx.objs[i].p);
+					let delta: Vec = this.p.sub(this.phyCtx.objs[i].p);
 					let d: number = delta.getMag();
-					var mtd = delta.scale(((this.rad + this.PhyCtx.objs[i].rad) - d) / d); 
+					var mtd = delta.scale(((this.rad + this.phyCtx.objs[i].rad) - d) / d); 
 
 					let im1: number = 1 / this.m; 
-					let im2: number = 1 / this.PhyCtx.objs[i].m;
+					let im2: number = 1 / this.phyCtx.objs[i].m;
 
-					//Push-pull particles based on their mass
 					this.p = this.p.add(mtd.scale(im1 / (im1 + im2)));
-					this.PhyCtx.objs[i].p = this.PhyCtx.objs[i].p.sub(mtd.scale(im2 / (im1 + im2)));
+					this.phyCtx.objs[i].p = this.phyCtx.objs[i].p.sub(mtd.scale(im2 / (im1 + im2)));
 
-					//Get impact velocity
-					let iv: Vector = this.v.sub(this.PhyCtx.objs[i].v);
+					let iv: Vec = this.v.sub(this.phyCtx.objs[i].v);
 					mtd = mtd.getNorm();
 					let vn: number = iv.dot(mtd);
 
-					//Case where particles intersecting but already moving away from each other
 					if (vn <= 0) {
-						//Get collision impulse
 						var imp = ((-1 * vn) * (1 + this.el)) / (im1 + im2);
 						var impulse = mtd.scale(imp);
 
-						//Apply change in momentum
 						this.v = this.v.add(impulse.scale(im1));
-						this.PhyCtx.objs[i].v = this.PhyCtx.objs[i].v.sub(impulse.scale(im2));
+						this.phyCtx.objs[i].v = this.phyCtx.objs[i].v.sub(impulse.scale(im2));
 					}
 				}
 			}
 		}
-	}
+    }
+    
+    //
+    // Public Variables
+    //
+    export const
+        GRAV = 41.18, //pixels per frame^2
+        TAU  = 6.2832;
+
+    let globalCtx;
 }
