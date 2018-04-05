@@ -1,0 +1,40 @@
+{
+  "name": "bunas",
+  "version": "1.0.0",
+  "description": "The little typescript game engine the could",
+  "main": "gulpFile.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NiallAins/BunasEngine.git"
+  },
+  "keywords": [
+    "typescript",
+    "html5",
+    "canvas",
+    "game",
+    "engine",
+    "javascript",
+    "bunas",
+    "physics"
+  ],
+  "author": "Niall Ainsworth",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/NiallAins/BunasEngine/issues"
+  },
+  "homepage": "https://github.com/NiallAins/BunasEngine#readme",
+  "devDependencies": {
+    "gulp": "^3.9.1",
+    "gulp-concat": "^2.6.1",
+    "gulp-markdown-it": "^0.1.1",
+    "gulp-typescript": "^4.0.2",
+    "gulp-uglify": "^3.0.0",
+    "typescript": "^2.8.1"
+  }
+}
