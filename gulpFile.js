@@ -1,32 +1,29 @@
-let gulp       = require('gulp'),
+var gulp       = require('gulp'),
     markdown   = require('gulp-markdown-it'),
-    typescript = require('gulp-typescript'),
-    uglify     = require('gulp-uglify'),
-    concat     = require('gulp-concat');
+    concat     = require('gulp-concat'),
+    replace    = require('gulp-replace'),
+    typescript = require('gulp-typescript');
+    tsProject  = typescript.createProject('./dist/tsconfig.json');
 
-gulp.task('compile', function () {
-    gulp.src('./modules/*.ts')
-        .pipe(typescript({
-            outFile         : 'Bunas.js',
-            module          : 'amd',
-            target          : 'es5',
-            sourceMap       : true,
-            removeComments  : true
+gulp.task('condense', function() {
+    var saveSpace = [];
+    return gulp.src(['./modules/*.ts'])
+        .pipe(concat('Bunas.ts'))
+        .pipe(replace(/(import .*)|([\n\s]+\/\/.*)/g, ''))
+        .pipe(replace(/`[^`]*`|'[^']'|"[^"]"/g, function($0) {
+            saveSpace.push($0.replace(/(\r?\n|\r)\s*/g, ''));
+            return '##saveSpace##';
         }))
-        .pipe(gulp.dest('./modules'));
+        .pipe(replace(/\s+/g, ' '))
+        .pipe(replace(/ ?([^%a-z0-9_ ]) ?/gi, '$1'))
+        .pipe(replace(/##saveSpace##/g, function() { return saveSpace.shift(); }))
+        .pipe(gulp.dest('./dist/dev'));
 });
 
-
-gulp.task('concat', ['compile'], function() {
-    gulp.src(['./modules/require.js', './modules/Bunas.js'])
-        .pipe(concat('Bunas.js'))
-        .pipe(gulp.dest('./production/dev'));
-});
-
-gulp.task('build', ['compile'], function() {
-        gulp.src('./production/dev/Bunas.js')
-            .pipe(uglify('Bunas.js'))
-            .pipe(gulp.dest('./production/dev'));
+gulp.task('compile', function() {
+    return tsProject.src()
+        .pipe(tsProject())
+        .pipe(gulp.dest('./dist/'))
 });
 
 gulp.task('markdown', function() {
@@ -37,7 +34,8 @@ gulp.task('markdown', function() {
         }));
 });
 
-gulp.task('default', ['build', 'markdown'], function() {
-    gulp.watch('./modules/*.ts', ['build']);
+gulp.task('default', ['compile', 'markdown'], function() {
+    gulp.watch('./modules/*.ts', ['condense']);
+    gulp.watch('./dist/dev/*', ['compile']);
     gulp.watch('./docs/pages/*.md', ['markdown']);
 });

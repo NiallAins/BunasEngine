@@ -1,4 +1,4 @@
-import { Engine as Eng } from './Engine';
+import { Engine } from './Engine';
 import { Input } from './Input';
 
 export module Debug {
@@ -13,7 +13,7 @@ export module Debug {
         container  : HTMLDivElement = document.createElement('div'),
         output     : HTMLPreElement = document.createElement('pre'),
         dTInterval = setInterval(function() {
-            dT = Eng.getDelta().toFixed(3).toString();
+            dT = Engine.getDelta().toFixed(3).toString();
         }, 500);
     
     container.setAttribute('style', `
@@ -32,11 +32,11 @@ export module Debug {
     //
     export let
         fontSize        : number = 14,
-        color           : string = 'orangered',
+        color           : string = 'dodgerblue',
         defaultOptions  : {[option: string] : boolean} = {
             dt: true, 
             input : true
-        }
+        };
 
     //
     // Public Methods
@@ -46,16 +46,16 @@ export module Debug {
             show = state === undefined ? !show : state;
             show ? document.body.appendChild(container) : document.body.removeChild(container);
         }
-    }
+    };
 
     export function log(data: any, persist = true): void {
         let entry = JSON.stringify(data, null, '\t');
         persist ? permLog.push(entry) : logs.push(entry);
-    }
+    };
 
     export function clear(): void {
         permLog = [];
-    }
+    };
 
     export function draw(ctx: CanvasRenderingContext2D): void {
         output.setAttribute('style', `
@@ -71,39 +71,36 @@ export module Debug {
             output.innerHTML += `dT    : ${dT}<br/>`;
         }
         if (defaultOptions['input']) {
-            output.innerHTML += `Input : ${getInputData()}<br/>`;
+            output.innerHTML += `Input : ${getInputData()}<br/><br/>`;
         }
         output.innerHTML += permLog.concat(logs).join('<br/>');
 
         output.scrollTop = output.scrollHeight;
         logs = [];
-    }
+    };
 
     //
     // Private Methods
     //
     function getInputData(): string {
-        return `keyPressed = [${Input.key.pressed.join(', ')}]
-        mouseState =
-            x: ${Input.mouse.x}
-            y: ${Input.mouse.y}
-            ${Input.mouse.left.pressed ? `left.pressed
-            ` : ''}${Input.mouse.left.dragging ? `left.dragging` : ''} ${Input.mouse.left.drag ? `left.drag
-            ` : `
-            `}${Input.mouse.left.dragPts.length ? `left.dragPts: [${
-                       Input.mouse.left.dragPts.reduce(
-                           (str, p) => str =
-                            (str.length > 200 ? '...' + str.substr(-200) : str) + '(' + p.x + ', ' + p.y + ')'
-                        , '')}]
-            ` : ''}${Input.mouse.right.pressed ? `right.pressed
-            ` : ''}${Input.mouse.right.dragging ? `right.dragging` : ''} ${Input.mouse.right.drag ? `right.drag
-            ` : `
-            `}${Input.mouse.right.dragPts.length ? `right.dragPts: [${
-                       Input.mouse.right.   dragPts.reduce(
-                           (str, p) => str =
-                            (str.length > 200 ? '...' + str.substr(-200) : str) + '(' + p.x + ', ' + p.y + ')'
-                        , '')}]` : ''}
-        `;
-    }
+        var str = [];
+        str.push(`<br/>    keyPressed = [${Input.key.pressed.join(', ')}]`);
+        str.push(`    mouseState =`);
+        str.push(`        x: ${Input.mouse.x}`);
+        str.push(`        y: ${Input.mouse.y}`);
+        if (Input.mouse.left.pressed)  str.push(`    left.pressed`);
+        if (Input.mouse.left.dragging) str.push(`    left.dragging ${Input.mouse.left.drag ? ' left.drag' : ''}`);
+        if (Input.mouse.left.dragPts.length) {
+            str.push(`        left.dragPts: [<br/>${Input.mouse.left.dragPts.reduce((str, p) =>
+                str = (str.length > 200 ? '...' + str.substr(-200) : str) + '(' + p.x + ', ' + p.y + ')', '')}]`);
+        }
+        if (Input.mouse.right.pressed)  str.push(`    right.pressed`);
+        if (Input.mouse.right.dragging) str.push(`    right.dragging ${Input.mouse.right.drag ? 'right.drag' : ''}`);
+        if (Input.mouse.right.dragPts.length) {
+            str.push(`        right.dragPts: [<br/>${Input.mouse.right.dragPts.reduce((str, p) =>
+                str = (str.length > 200 ? '...' + str.substr(-200) : str) + '(' + p.x + ', ' + p.y + ')', '')}]`);
+        }
+        return str.join('<br/>');
+    };
     
 }

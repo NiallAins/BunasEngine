@@ -1,4 +1,4 @@
-import { World } from './World'; 
+import { World } from './World';
 
 //
 //  Interfaces
@@ -20,7 +20,7 @@ export class GameObject {
     }
 
     public startStep (delta: number): void {};
-    public step      (delta: number): void {}
+    public step      (delta: number): void {};
     public endStep   (delta: number): void {};
 
     public startDraw (ctx: CanvasRenderingContext2D, delta: number): void {};

@@ -1,6 +1,15 @@
 import { GameObject } from './Core';
 
 export module Physics {
+	//
+    // Public Variables
+    //
+    export const
+        GRAV = 41.18, //pixels per frame^2
+        TAU  = 6.2832;
+
+	let globalCtx;
+	
     //
     // Class: Vector
     //
@@ -201,13 +210,4 @@ export module Physics {
 			}
 		}
     }
-    
-    //
-    // Public Variables
-    //
-    export const
-        GRAV = 41.18, //pixels per frame^2
-        TAU  = 6.2832;
-
-    let globalCtx;
 }

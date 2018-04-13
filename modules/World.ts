@@ -1,4 +1,4 @@
-import { Engine as Eng } from './Engine';
+import { Engine } from './Engine';
 import { GameObject } from './Core';
 
 export module World {
@@ -22,7 +22,7 @@ export module World {
             if (!view) {
                 this.addView(new View(0, 0, 1));
             }
-        }
+        };
 
         public open() {
             if (!this.active) {
@@ -32,16 +32,16 @@ export module World {
             }
             areas.push(this);
             this.onOpen();
-        }
+        };
 
         public close() {
             if (!this.persist) {
                 this.active = false;
                 this.objs = [];
             }
-            areas.splice(1, areas.indexOf(this))
+            areas.splice(1, areas.indexOf(this));
             this.onClose();
-        }
+        };
 
         public addObject(o: GameObject): void {
             if (!o.z) {
@@ -55,25 +55,25 @@ export module World {
             }
             this.objs.push(o);
             o.area = this;
-        }
+        };
 
         public addView(v: View): number {
             this.views.push(v);
             return this.views.length;
-        }
+        };
 
         public removeView(v: View): number {
             this.views.splice(1, this.views.indexOf(v));
             return this.views.length;
-        }
+        };
 
         public togglePersistance(state?) {
             this.persist = state === undefined ? this.persist = !this.persist : state;
             if (!this.persist && !this.active) {
                 this.objs = [];
             }
-        }
-    }
+        };
+    };
 
     //
     // Class: View Port
@@ -93,8 +93,8 @@ export module World {
             public y      : number = 0,
             public z      : number = 1,
             public ang    : number = 0, 
-            public width  : number = Eng.cW,
-            public height : number = Eng.cH,
+            public width  : number = Engine.cW,
+            public height : number = Engine.cH,
             public canX   : number = 0,
             public canY   : number = 0,
             public canZ   : number = 0
@@ -107,16 +107,16 @@ export module World {
             this.init_canX    = canX;
             this.init_canY    = canY;
             this.init_canZ    = canZ;
-        }
+        };
 
         public translate(dx : number, dy : number) {
             this.x += dx;
             this.y += dy;
-        }
+        };
 
         public zoom(dz : number) {
             this.z *= dz;
-        }
+        };
 
         public reset() {
             this.x      = this.init_x;
@@ -127,8 +127,8 @@ export module World {
             this.canX   = this.init_canX;
             this.canY   = this.init_canY;
             this.canZ   = this.init_canZ;
-        }
-    }
+        };
+    };
 
     //
     // Public Variables
@@ -156,7 +156,7 @@ export module World {
         for (let i = 0, len = activeObjs.length; i < len; i += 1) {
             activeObjs[i].endStep(dT);
         }
-    }
+    };
 
     export function draw(ctx: CanvasRenderingContext2D, dT: number) {
         areas
@@ -187,12 +187,12 @@ export module World {
                     }
                 ctx.restore();
             });
-    }
+    };
     
     export function goTo(a: Area, replace: boolean= true) {
         if (replace) {
             areas.forEach(act => act.close());
         }
         a.open();
-    }
+    };
 }

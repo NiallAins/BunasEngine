@@ -1,4 +1,4 @@
-import { Engine as Eng } from './Engine';
+import { Engine } from './Engine';
 
 export module Input {
     //
@@ -7,18 +7,18 @@ export module Input {
     type Point = {
         x : number;
         y : number;
-    }
+    };
 
     interface KeyBoard {
         down    : string;
         up      : string;
         pressed : string[];
-    }
+    };
 
     interface Mouse extends Point {
         left  : MouseButton;
         right : MouseButton;
-    }
+    };
 
     interface MouseButton {
         down       : boolean;
@@ -30,7 +30,7 @@ export module Input {
         endDrag    : boolean;
         dragging   : boolean;
         dragPts    : Point[];
-    }
+    };
 
     //
     // Private Variables
@@ -87,11 +87,11 @@ export module Input {
     //
     export function setDragTolerance(tolerance: number): void {
         dragCheck.tolerance = tolerance;
-    }
+    };
 
     export function setdoubleClickWait(v: number): void {
         dblClickWait = v;
-    }
+    };
 
     //
     // Public Methods
@@ -105,7 +105,7 @@ export module Input {
         window.onkeyup   = onKeyUp.bind(this);
 
         toggleContextMenu(false);
-    }
+    };
 
     export function clear(): void {
         resetMouseButton(mouse.left);
@@ -113,7 +113,7 @@ export module Input {
 
         key.down = null;
         key.up   = null;
-    }
+    };
 
     export function toggleContextMenu(show = true): void {
         if (show) {
@@ -123,20 +123,20 @@ export module Input {
                 e.preventDefault();
             };
         }
-    }
+    };
 
     export function checkKey(...keys: string[]): boolean | object {
         return keys.some(k => key.pressed.indexOf(k) !== -1);
-    }
+    };
 
     export function setCursor(cursor: (ctx: CanvasRenderingContext2D, delta: number)=>void | string) {
         if (typeof cursor === 'string') {
-            (Eng.getCanvasEl() as HTMLElement).style.cursor = cursor;
+            (Engine.getCanvasEl() as HTMLElement).style.cursor = cursor;
         } else {
-            (Eng.getCanvasEl() as HTMLElement).style.cursor = 'none';
+            (Engine.getCanvasEl() as HTMLElement).style.cursor = 'none';
             customCursor = cursor;
         }
-    }
+    };
 
     export function drawCursor(ctx: CanvasRenderingContext2D, delta: number) {
         if (customCursor) {
@@ -145,7 +145,7 @@ export module Input {
                 customCursor(ctx, delta);
             ctx.restore();
         }
-    }
+    };
 
     //
     // Private Methods
@@ -155,7 +155,7 @@ export module Input {
         dragCheck.originY = e.clientY;
         mouse[clickCode[e.button]].pressed = true;
         mouse[clickCode[e.button]].down    = true;
-    }
+    };
 
     function onMouseUp(e: MouseEvent): void {
         let b = mouse[clickCode[e.button]];
@@ -175,7 +175,7 @@ export module Input {
             b.dblCheck = true;
             setTimeout(() => b.dblCheck = false, dblClickWait);
         }
-    }
+    };
 
     function onMouseMove(e: MouseEvent): void {
         mouse.x = e.clientX;
@@ -183,7 +183,7 @@ export module Input {
 
         checkDrag(mouse.left);
         checkDrag(mouse.right);
-    }
+    };
 
     function checkDrag(b: MouseButton): void {
         if (b.pressed) {
@@ -212,7 +212,7 @@ export module Input {
                 });
             }
         }
-    }
+    };
 
     function resetMouseButton(b: MouseButton): void {
         b.down       = false;
@@ -221,7 +221,7 @@ export module Input {
         b.drag       = false;
         b.startDrag  = false;
         b.endDrag    = false;
-    }
+    };
 
     function onKeyDown(e: KeyboardEvent): void {
         let keyName = e.code;
@@ -229,11 +229,11 @@ export module Input {
         if (key.pressed.indexOf(keyName) === -1) {
             key.pressed.push(keyName);
         }
-    }
+    };
 
     function onKeyUp(e: KeyboardEvent): void {
         let keyName = e.code;
         key.up = keyName;
         key.pressed.splice(key.pressed.indexOf(keyName), 1);
-    }
+    };
 }

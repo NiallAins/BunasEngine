@@ -1,21 +1,23 @@
-import { Engine as Eng } from './Engine';
+import { Engine } from './Engine';
+import { GameObject } from './Core';
+import { Physics } from './Physics';
 
 export module Graphics {
     //
     // Types / Interfaces
     //
     export type keyframe     = number | number[] | number[][] | (number | string)[][];
-    export type keyframeSet  = { [property: string] : keyframe }
-    export type drawFunction = (frame: { [property: string] : number }, ctx: CanvasRenderingContext2D)=>void
+    export type keyframeSet  = { [property: string] : keyframe };
+    export type drawFunction = (frame: { [property: string] : number }, ctx: CanvasRenderingContext2D)=>void;
     export type spriteState  = {
         duration   : number,
-        elements   : { [element: string] : keyframeSet }
+        elements   : { [element: string] : keyframeSet },
         fr?        : number,
-        iteration? : number
+        iteration? : number,
         easeIn?    : string,
         easeOut?   : string,
         onEnd?     : ()=>void
-    }
+    };
 
     export interface ISprite {
         duration: number;
@@ -44,7 +46,7 @@ export module Graphics {
             this.width  = sprite.width / frTotal;
             this.height = sprite.height;
             this.frRate = 60;
-        }
+        };
         
         public draw(canX, canY, delta = 1): void {
             this.ctx.drawImage(
@@ -67,16 +69,16 @@ export module Graphics {
                     }
                 }
             }
-        }
+        };
 
         public toggle() {
 
-        }
+        };
 
         public reverse() {
 
-        }
-    }
+        };
+    };
 
     //
     // Class: Vector Sprite
@@ -91,7 +93,7 @@ export module Graphics {
             public keyframeSet: keyframeSet = null,
             public duration: number = 30
         ) {
-        }
+        };
 
         public draw(x: number, y: number, ang: number, ctx: CanvasRenderingContext2D) {
             ctx.save();
@@ -104,25 +106,25 @@ export module Graphics {
                 return;
             }
 
-            this.fr += (1 / this.duration) * Eng.getDelta();
+            this.fr += (1 / this.duration) * Engine.getDelta();
             
             if (this.fr > 1 || this.fr < 0) {
                 this.fr = (this.fr + 1) % 1;
                 this.onEnd();
             }
-        }
+        };
 
         public toggle(play: boolean = null, setFrame?: number) {
-            this.isPaused = play === null ? !this.isPaused : !play
+            this.isPaused = play === null ? !this.isPaused : !play;
             if (setFrame || setFrame === 0) {
                 this.fr = setFrame;
             }
-        }
+        };
 
         public reverse() {
             this.duration *= -1;
-        }
-    }
+        };
+    };
 
     //
     // Class: Dynamic Vector Sprite
@@ -152,7 +154,7 @@ export module Graphics {
             this.currentState = Object.keys(states)[0];
             this.state = states[this.currentState];
             this.duration = this.state.duration;
-        }
+        };
 
         public draw(x: number, y: number, ang: number, ctx: CanvasRenderingContext2D) {
             ctx.save();
@@ -183,7 +185,7 @@ export module Graphics {
 
             if (!this.isPaused) {
                 if (this.duration) {
-                    this.fr += (1 / this.duration) * Eng.getDelta();
+                    this.fr += (1 / this.duration) * Engine.getDelta();
                     if (this.fr > 1 || this.fr < 0) {
                         this.fr = (this.fr + 1) % 1;
                         this.state.onEnd();
@@ -191,7 +193,7 @@ export module Graphics {
                     }
                 }
                 if (this.action) {
-                    this.action.fr += (1 / this.action.duration) * Eng.getDelta();
+                    this.action.fr += (1 / this.action.duration) * Engine.getDelta();
                     if (this.action.fr > 1 || this.action.fr < 0) {
                         if (this.action.iteration > 1) {
                             this.action.iteration--;
@@ -207,7 +209,7 @@ export module Graphics {
                     }
                 }
             }
-        }
+        };
 
         public changeState(state: string, setFrame: number = -1, transition: number = 5, ease: string = 'sine'): void {
             if (this.currentState === state && setFrame === -1) {
@@ -246,7 +248,7 @@ export module Graphics {
             } else {
                 this.setState(state, setFrame);
             }
-        }
+        };
 
         private setState(state: string, setFrame = -1) {
             this.state = this.states[state];
@@ -254,7 +256,7 @@ export module Graphics {
                 this.fr = setFrame;
             }
             this.duration = this.state.duration;
-        }
+        };
 
         public trigger(action: string, iterations: number = 1, transition: number = 10, ease: string = 'sine'): void {
             if (this.currentAction === action) {
@@ -286,13 +288,13 @@ export module Graphics {
             } else {
                 this.setAction(action, iterations)
             }
-        }
+        };
 
         private setAction(action, iterations) {
             this.action = this.actions[action];
             this.action.iteration = iterations;
             this.action.fr = 0;
-        }
+        };
 
         public toggle(play: boolean = null, setFrame?: number, setActionFrame?: number) {
             this.isPaused = play === null ? !this.isPaused : !play;
@@ -302,12 +304,179 @@ export module Graphics {
             if ((setActionFrame || setActionFrame === 0) && this.action) {
                 this.action.fr = setActionFrame;
             }
-        }
+        };
 
         public reverse() {
             this.duration *= -1;
+        };
+    };
+
+    export class Emitter extends GameObject {
+        private parts       : Particle[] = [];
+        private currentRate : number = 0;
+        private _grav       : Physics.Vec;
+        private _size       : number[] = [2, 2];
+        private _color      : string = 'dodgerblue';
+        private _lifespan   : number[] = [100, 100];
+        private _ang        : number[] = [0, 0];
+        private _power      : number[] = [1, 1];
+        private _rate       : number[] = [10, 10];
+
+		constructor(
+			public x      : number,
+			public y      : number,
+			       ang?   : number | number[],
+			       power? : number | number[],
+			       rate?  : number | number[],
+		) {
+            super(x, y);
+            if (ang) {
+                this._ang = this.configRange(ang);
+            }
+            if (power) {
+                this._power = this.configRange(power);
+            }
+            if (rate) {
+                this._rate = this.configRange(rate);
+            }
+        };
+
+        set gravity(g : Physics.Vec | number) {
+            if (typeof g === 'number') {
+                this._grav = new Physics.Vec(g, Math.PI / 2, true);                    
+            } else {
+                this._grav = g as Physics.Vec;
+            }
         }
-    }
+
+        set angle(a: number | number[]) {
+            this._ang = this.configRange(a);
+        }
+        set power(a: number | number[]) {
+            this._power = this.configRange(a);
+        }
+        set rate(a: number | number[]) {
+            this._rate = this.configRange(a);
+        }
+
+        private configRange(p): number[] {
+            if (typeof p === 'object') {
+                return [p[0], p[1] - p[0]];
+            } else {
+                return [p, 0];
+            }
+        }
+        
+        public setParticle(
+            size: number | number[],
+			color?: string,
+            lifespan?: number | number[]
+        ) {
+            this._size = this.configRange(size);
+            if (color) {
+                this._color = color;
+            }
+            if (lifespan) {
+                this._lifespan = this.configRange(lifespan);
+            }
+        }
+
+		public step(dt) {
+            this.currentRate += dt;
+            if (this.currentRate > this._rate[0]) {
+                for(let i = this._rate[0]; i < this.currentRate; i += this._rate[0]) {
+                    let s = this._size[0]     + (Math.random() * this._size[1]),
+                        c = this._color,
+                        l = this._lifespan[0] + (Math.random() * this._lifespan[1]),
+                        a = this._ang[0]      + (Math.random() * this._ang[1]),
+                        p = this._power[0]    + (Math.random() * this._power[1]);
+                    this.parts.push(new Particle(this.x, this.y, s, c, l, new Physics.Vec(p, a, true), (this.currentRate - i) / this._rate[0]));
+                }   
+                this.currentRate %= this._rate[0];
+                this.currentRate += Math.random() * this._rate[1];
+            }
+			this.parts.forEach((p, i) => {
+				p.lifespan -= dt;
+				if (p.lifespan < 0) {
+                    p.die(this.parts, i);
+				}
+				p.step(this._grav);
+            });
+		}
+
+		public draw(ctx, dt) {
+			ctx.beginPath();
+            this.parts.forEach(p => {
+                p.draw(ctx);
+            });
+            ctx.fill();
+		}
+	}
+
+	class Particle {
+        private opacity: number = 1;
+        public draw: (ctx: CanvasRenderingContext2D)=>void;
+
+		constructor (
+            private x           : number,
+            private y           : number,
+			private size        : number = 2,
+			private color       : string = 'black',
+			public  lifespan    : number = 1000,
+            private velocity    : Physics.Vec,
+                    offset      : number = 1
+		) {
+			if (!velocity) {
+				this.velocity = new Physics.Vec(0, 0);
+            }
+            this.x += this.velocity.scale(offset).x - (this.size / 2);
+            this.y += this.velocity.scale(offset).y - (this.size / 2);
+
+            if (this.size <= 2) {
+                this.draw = (ctx) => {
+                    ctx.moveTo(this.x, this.y);
+                    ctx.rect(this.x, this.y, this.size, this.size);
+                    if (this.opacity < 1) {
+                        ctx.globalAlpha = this.opacity;
+                    }
+                    if (ctx.strokeStyle !== this.color) {
+                        ctx.strokeStyle = this.color;
+                        ctx.stroke();
+                        ctx.beginPath();
+                    }
+                    ctx.globalAlpha = 1;
+                }
+            } else {
+                this.draw = (ctx) => {
+                    ctx.moveTo(this.x, this.y);
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    if (this.opacity < 1) {
+                        ctx.globalAlpha = this.opacity;
+                    }
+                    if (ctx.fillStyle !== this.color) {
+                        ctx.fillStyle = this.color;
+                        ctx.fill();
+                        ctx.beginPath();
+                    }
+                    ctx.globalAlpha = 1;
+                }
+            }
+		};
+
+		public step(gravity?: Physics.Vec) {
+            if (gravity) {
+                this.velocity = this.velocity.add(gravity);
+            }
+			this.x += this.velocity.x;
+            this.y += this.velocity.y;
+        }
+        
+        public die(parts, i) {
+            this.opacity -= 0.2;
+            if (this.opacity <= 0)
+            parts.splice(i, 1);
+        }
+	}
 
     //
     // Private Methods
@@ -322,7 +491,7 @@ export module Graphics {
             }
         }
         return params;
-    }   
+    };   
 
     function interpolate(keyframe: keyframe, currentFrame: number): number {
         let nextKeyframe = 0;
@@ -347,7 +516,7 @@ export module Graphics {
 
         let frameDiff = (1 + end[0] - start[0]) % 1;
         return Easings[start[2] || 'sine'](currentFrame - start[0], start[1], end[1] - start[1], frameDiff);
-    }
+    };
 
     //
     // Easing Functions

@@ -10,7 +10,7 @@ export module Engine {
         sprites? : { [name : string] : string | HTMLImageElement };
         sounds?  : { [name : string] : string | HTMLImageElement };
         bgs?     : { [name : string] : string | HTMLAudioElement };
-    }
+    };
 
     //
     // Public Variables
@@ -27,9 +27,9 @@ export module Engine {
     // Setters / Getters
     //
     
-    export function getDelta()    : number            {return dT; }
-    export function getCanvasEl() : HTMLCanvasElement { return can; }
-    export function getAssets()   : AssetList         { return assets; }
+    export function getDelta()    : number            {return dT; };
+    export function getCanvasEl() : HTMLCanvasElement { return can; };
+    export function getAssets()   : AssetList         { return assets; };
 
     //
     // Process: Initalisation
@@ -56,7 +56,7 @@ export module Engine {
                 delayLoad();
             }
         }
-    }
+    };
 
     export function init(
         _exBind   : Function = null,
@@ -94,7 +94,7 @@ export module Engine {
         Input.init();
 
         initDone = true;
-    }
+    };
 
     //
     // Process: Asset Loading
@@ -147,7 +147,7 @@ export module Engine {
                 ctx.stroke();
             }
         );
-    }
+    };
 
     function advanceLoading(loadScreen: (completion: number)=>void): void {
         if (loading > 0) {
@@ -159,10 +159,10 @@ export module Engine {
                 sprites : spriteLoader,
                 sounds  : soundLoader,
                 bgs     : bgLoader
-            }
+            };
             initLoop(externalCallback);
         }
-    }   
+    };   
 
     function assetLoader(): void {
         for (let element in spriteLoader) {
@@ -193,7 +193,7 @@ export module Engine {
             sound.load();
             sound.oncanplaythrough = () => loading -= 1;
         }
-    }
+    };
 
     //
     // Process: Engine Lifecycle
@@ -201,7 +201,7 @@ export module Engine {
     function initLoop(externalCallback): void {
         externalCallback.call(exBind);
         loop();
-    }
+    };
 
     function loop(): void {
         setTimeout(() => {
@@ -223,5 +223,5 @@ export module Engine {
             Input.clear();
             window.requestAnimationFrame(loop.bind(this));
         }, frameDur - (+new Date()) + currentT);
-    }
+    };
 }

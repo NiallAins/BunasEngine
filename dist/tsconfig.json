@@ -1,0 +1,16 @@
+{
+    "compileOnSave": true,
+    "compilerOptions": {
+        "module": "amd",
+        "target": "es5",
+        "outFile": "./dist/src.js",
+        "removeComments": true,
+        "sourceMap": true,
+        "allowJs": true
+    },
+    "include": [
+        "./dev/require.js",
+        "./dev/Bunas.ts",
+        "./dev/*.ts"
+    ]
+}
