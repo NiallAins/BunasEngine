@@ -5,5 +5,5 @@ Eng.load({}, start);
 
 function start() {
     Debug.toggle();
-    Debug.log('Bunas is running...');
+    Debug.log('Bunas is running well...');
 }
