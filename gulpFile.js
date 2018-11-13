@@ -34,7 +34,7 @@ gulp.task('markdown', function() {
         }));
 });
 
-gulp.task('default', ['compile', 'markdown'], function() {
+gulp.task('default', ['condense', 'compile', 'markdown'], function() {
     gulp.watch('./modules/*.ts', ['condense']);
     gulp.watch('./dist/dev/*', ['compile']);
     gulp.watch('./docs/pages/*.md', ['markdown']);
