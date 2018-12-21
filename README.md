@@ -39,6 +39,9 @@ Open `dist/index.html` to see your project running.
 
 To deploy your completed project, the only files you need to export are `dist/index.html` and `dist/src.js`.
 
+For a full explaination on how to develop with **Bunas**, please see our documentation site here:  
+http://niallains.github.io/BunasEngine
+
 # Developing Bunas
 If you wish to develop or change the **Bunas** engine itself, first clone this project, then run the following commands:
 ```

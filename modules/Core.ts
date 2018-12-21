@@ -26,4 +26,8 @@ export class GameObject {
     public startDraw (ctx: CanvasRenderingContext2D, delta: number): void {};
     public draw      (ctx: CanvasRenderingContext2D, delta: number): void {};
     public endDraw   (ctx: CanvasRenderingContext2D, delta: number): void {};
+
+    public die(): void {
+        this.area.removeObject(this);
+    }
 }

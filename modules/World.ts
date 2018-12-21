@@ -1,19 +1,26 @@
 import { Engine } from './Engine';
 import { GameObject } from './Core';
+import { Input } from './Input';
 
 export module World {
     //
     // Class: Area
     //
     export class Area {
-        public objs  : GameObject[] = [];
+        public objs : GameObject[] = [];
         public views : View[] = [];
+        private layout: {
+            grid: string;
+            objects: {[instance: string]: any[]};
+            width: number;
+            height: number;
+            x: number,
+            y: number
+        };
         private active : boolean = false;
 
         constructor(
-            public width      : number = -1, 
-            public height     : number = -1,
-            public initState : ()=>void = ()=>{},
+            public onInit     : ()=>void = ()=>{},
             public onOpen     : ()=>void = ()=>{},
             public onClose    : ()=>void = ()=>{},
             private persist   : boolean = false,
@@ -24,9 +31,64 @@ export module World {
             }
         };
 
-        public open() {
+        private createLayout() {
+            let grid = this.layout.grid.split('\n');
+            let startCol = -1,
+                startRow = -1;
+            for (let i = 0; i < grid.length; i++) {
+                let m = grid[i].match(/[a-z0-9]/i);
+                if (m) {
+                    if (startCol === -1) {
+                        startCol = i;
+                    }
+                    if (m.index < startRow) {
+                        startRow = m.index;
+                    }
+                }
+            }
+            grid.forEach((l, row) => {
+                l.replace(
+                    /[a-z0-9]/gi, 
+                    (o, col) => {
+                        try {
+                            let obj = this.layout.objects[o];
+                            let inst = new obj[0](...obj.slice(1));
+                            inst.x = this.layout.x + ((col - startCol) * this.layout.width);
+                            inst.y = this.layout.y + ((row - startRow) * this.layout.height);
+                            this.addObject(inst);
+                        } catch {
+                            console.error(`Bunas Error: Cannot create object for character "${o}" in level layout`);
+                        }
+                        return o;
+                    }
+                );
+            });
+        }
+
+        public setLayout(
+            objs: {[instance: string]: any[]},
+            grid: string,
+            width: number = 64,
+            height?: number,
+            x: number = 0,
+            y: number = 0
+        ): void {
+            this.layout = {
+                grid: grid,
+                objects: objs,
+                width: width,
+                height: height || width,
+                x: x,
+                y: y
+            };
+        }
+
+        public open(): void {
             if (!this.active) {
-                this.initState();
+                if (this.layout) {
+                    this.createLayout();
+                }
+                this.onInit();
                 this.views.forEach(v => v.reset());
                 this.active = true;
             }
@@ -43,7 +105,10 @@ export module World {
             this.onClose();
         };
 
-        public addObject(o: GameObject): void {
+        public addObject(o: GameObject, duplicate: Boolean = false): void {
+            if (!duplicate && o.area) {
+                o.area.removeObject(o);
+            }
             if (!o.z) {
                 o.z = 0;
             }
@@ -56,6 +121,10 @@ export module World {
             this.objs.push(o);
             o.area = this;
         };
+
+        public removeObject(o: GameObject): void {
+            this.objs.splice(this.objs.indexOf(o), 1);
+        }
 
         public addView(v: View): number {
             this.views.push(v);
@@ -163,12 +232,13 @@ export module World {
             .reduce((t, a) => t.concat(a.views), [])
             .forEach(v => {
                 let visibleObjs = activeObjs.filter(o =>
-                    o.clipRadius < 0 || (
-                        o.x + o.clipRadius > v.x &&
-                        o.x - o.clipRadius < v.x + v.width &&
-                        o.y + o.clipRadius > v.y &&
-                        o.y - o.clipRadius < v.y + v.height
-                    )
+                    true
+                    // o.clipRadius < 0 || (
+                    //     o.x + o.clipRadius > v.x &&
+                    //     o.x - o.clipRadius < v.x + v.width &&
+                    //     o.y + o.clipRadius > v.y &&
+                    //     o.y - o.clipRadius < v.y + v.height
+                    // )
                 );
 
                 ctx.save();
@@ -189,7 +259,7 @@ export module World {
             });
     };
     
-    export function goTo(a: Area, replace: boolean= true) {
+    export function goTo(a: Area, replace: boolean = true) {
         if (replace) {
             areas.forEach(act => act.close());
         }

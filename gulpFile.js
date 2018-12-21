@@ -7,9 +7,9 @@ var gulp       = require('gulp'),
 
 gulp.task('condense', function() {
     var saveSpace = [];
-    return gulp.src(['./modules/*.ts'])
+    return gulp.src(['./modules/*.ts', './modules/*.js'])
         .pipe(concat('Bunas.ts'))
-        .pipe(replace(/(import .*)|([\n\s]+\/\/.*)/g, ''))
+        .pipe(replace(/(import \{.*)|([\n\s]+\/\/.*)/g, ''))
         .pipe(replace(/`[^`]*`|'[^']'|"[^"]"/g, function($0) {
             saveSpace.push($0.replace(/(\r?\n|\r)\s*/g, ''));
             return '##saveSpace##';

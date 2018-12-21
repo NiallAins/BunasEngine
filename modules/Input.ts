@@ -115,7 +115,7 @@ export module Input {
         key.up   = null;
     };
 
-    export function toggleContextMenu(show = true): void {
+    export function toggleContextMenu(show: boolean = true): void {
         if (show) {
             window.oncontextmenu = function (e) { };
         } else {
@@ -129,7 +129,7 @@ export module Input {
         return keys.some(k => key.pressed.indexOf(k) !== -1);
     };
 
-    export function setCursor(cursor: (ctx: CanvasRenderingContext2D, delta: number)=>void | string) {
+    export function setCursor(cursor: (ctx: CanvasRenderingContext2D, delta: number)=>void | string): void {
         if (typeof cursor === 'string') {
             (Engine.getCanvasEl() as HTMLElement).style.cursor = cursor;
         } else {
@@ -138,7 +138,7 @@ export module Input {
         }
     };
 
-    export function drawCursor(ctx: CanvasRenderingContext2D, delta: number) {
+    export function drawCursor(ctx: CanvasRenderingContext2D, delta: number): void {
         if (customCursor) {
             ctx.save();
                 ctx.translate(mouse.x, mouse.y);

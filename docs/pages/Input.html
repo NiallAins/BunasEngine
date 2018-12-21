@@ -1,0 +1,84 @@
+<ul>
+<li><a href="#input">Input</a>
+<ul>
+<li><a href="#types">Types</a></li>
+<li><a href="#public-variables">Public Variables</a></li>
+<li><a href="#setters">Setters</a></li>
+<li><a href="#lifecycle-hooks">Lifecycle Hooks</a></li>
+<li><a href="#public-methods">Public Methods</a></li>
+</ul>
+</li>
+</ul>
+<h1>Input</h1>
+<pre><code class="language-ts">import { Engine } from './Bunas';
+</code></pre>
+<p>This module provide all the bsaic functionaily for the engine, including initalisation, loading of assets and time keeping.</p>
+<h2>Public Variables</h2>
+<p>The input modules contains two public variables which hold the state of the mouse and keyboard inputs.</p>
+<pre><code class="language-ts">    mouse: Mouse = {
+        x:    0,
+        y:    0,
+        left: {
+            down       : false,
+            up         : false,
+            doubleUp   : false,
+            pressed    : false,
+            drag       : false,
+            startDrag  : false,
+            endDrag    : false,
+            dragging   : false,
+            dragPts    : []
+        },
+        right: {
+            down       : false,
+            up         : false,
+            doubleUp   : false,
+            pressed    : false,
+            drag       : false,
+            startDrag  : false,
+            endDrag    : false,
+            dragging   : false,
+            dragPts    : []
+        }
+    };
+</code></pre>
+<p><em>x</em> and <em>y</em> is the cursor location on the canvas.
+<em>left</em> and <em>right</em> store the state of the left and right mouse buttons. On any given step one or more button states can return <code>true</code>. Some of these states are instant, meaning they will only be set as true for a single step after an event has occured before being reset to false. Others are continous, meaning they may remain true for several consecutive steps.</p>
+<ul>
+<li><em>down</em> - Instant. Button is pressed</li>
+<li><em>up</em> - Instant. Button is released</li>
+<li><em>doubleUp</em> - Instant. A double click is released</li>
+<li><em>pressed</em> - Continuous. Button was pressed down and has not yet been released</li>
+<li><em>drag</em>- Continuous. Button was pressed down and the cursor was moved. Button has yet to be released.</li>
+<li><em>startDrag</em> - Instant. Button was pressed down and the cursor moves for the first time</li>
+<li><em>endDrag</em> - Instant. Button is released which ends a drag event</li>
+<li><em>dragging</em> - Instant. Button was pressed down and the cursor moves
+During a drag event, the <em>dragPts</em> holds an array of <code>{x: number, y: number}</code> objects, indicating the points over which the cursor has been dragged. This array is not reset until the next drag event begins.</li>
+</ul>
+<pre><code class="language-ts">    key: KeyBoard = {
+        up      : null,
+        down    : null,
+        pressed : []
+    };
+</code></pre>
+<p>When a key is pressed down, <em>up</em> will hold that key's name for a single step.
+When a key is released, <em>up</em> will hold that key's name for a single step.
+The names of all keys that are currently being pressed will appear in the array <em>pressed</em>.</p>
+<h2>Setters</h2>
+<pre><code class="language-ts">    setDragTolerance(tolerance: number)=&gt;void
+</code></pre>
+<p>Sets the pixel distance the cursor must move while a button is being pressed, before a drag event is registed.</p>
+<pre><code class="language-ts">    setdoubleClickWait(v: number)=&gt;void
+</code></pre>
+<p>Sets the maximum number of milliseconds allowed between mouse clicks for a double click to be registered, triggering the <em>doubleUp</em> mouse button state.</p>
+<h2>Public Methods</h2>
+<pre><code class="language-ts">    toggleContextMenu(show: boolean = true)=&gt;void
+</code></pre>
+<p>Toggles whether or not to display the default browser context menu on right click.</p>
+<pre><code class="language-ts">    checkKey(...keys: string[]): boolean | object
+</code></pre>
+<p>Returns <code>true</code> if any of the key names provided as parameters are currently being pressed.</p>
+<pre><code class="language-ts">    setCursor(cursor: (ctx: CanvasRenderingContext2D, delta: number)=&gt;void | string)=&gt;void
+</code></pre>
+<p>If a CSS cursor type string ('pointer', 'disabled', 'none', etc.) is provided, the cursor will be changed to this.
+If a draw function is provided, this will be rendered in place of the default mouse cursor.</p>

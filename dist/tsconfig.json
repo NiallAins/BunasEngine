@@ -9,8 +9,7 @@
         "allowJs": true
     },
     "include": [
-        "./dev/require.js",
-        "./dev/Bunas.ts",
-        "./dev/*.ts"
+        "./dev/libs.min.js",
+        "./dev/main.ts"
     ]
 }

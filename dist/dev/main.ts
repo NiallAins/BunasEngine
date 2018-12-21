@@ -1,9 +1,8 @@
-import { Engine as Eng, Debug } from './Bunas';
+import { Engine, Debug } from './Bunas';
 
-Eng.init();
-Eng.load({}, start);
+Engine.init();
+Engine.load({}, start);
 
 function start() {
-    Debug.toggle();
-    Debug.log('Bunas is running well...');
+	Debug.log('Bunas is Running!');
 }

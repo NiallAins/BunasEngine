@@ -1,4 +1,5 @@
 import { GameObject } from './Core';
+import { Matter } from './Matter';
 
 export module Physics {
 	//
@@ -17,12 +18,12 @@ export module Physics {
 		public x: number;
 		public y: number;
 
-		constructor(a: number = 1, b: number = 0, polar = false) {
+		constructor(xm: number = 1, ya: number = 0, polar = false) {
 			if (polar) {
-				this.setMagAng(a, b);
+				this.setMagAng(xm, ya);
 			} else {
-				this.x = a;
-				this.y = b;
+				this.x = xm;
+				this.y = ya;
 			}
 		}
 
@@ -37,12 +38,20 @@ export module Physics {
 			this.y = Math.sin(ang) * mag;
 		}
 
-		public getAng():number {
+		public getAng(): number {
 			return Math.atan2(this.y, this.x);
+		}
+
+		public static getAng(v: Vec | Matter.Vector): number {
+			return Math.atan2(v.y, v.x);
 		}
 
 		public getMag(): number {
 			return Math.sqrt((this.x * this.x) + (this.y * this.y));
+		}
+
+		public static getMag(v: Vec | Matter.Vector): number {
+			return Math.sqrt((v.x * v.x) + (v.y * v.y));
 		}
 
 		public getNorm(): Vec {
@@ -50,11 +59,11 @@ export module Physics {
 			return new Vec(Math.cos(ang), Math.sin(ang));
 		}
 
-		public add(v: Vec): Vec {
+		public add(v: Vec | Matter.Vector): Vec {
 			return new Vec(this.x + v.x, this.y +  v.y);
 		}
 
-		public sub(v: Vec): Vec {
+		public sub(v: Vec | Matter.Vector): Vec {
 			return new Vec(this.x - v.x, this.y -v.y);
 		}
 
@@ -62,17 +71,17 @@ export module Physics {
 			return new Vec(this.x * s, this.y * s);
 		}
 
-		public dot(v:Vec): number {
+		public dot(v:Vec | Matter.Vector): number {
 			return (this.x * v.x) + (this.y * v.y)
 		}
 
-		public dis(v:Vec): number {
+		public dis(v:Vec | Matter.Vector): number {
 			let a = (v.x - this.x) * (v.x - this.x);
 			let b = (v.y - this.y) * (v.y - this.y);
 			return Math.sqrt(a + b);
 		}
 
-		public angWith(v:Vec): number {
+		public angWith(v:Vec | Matter.Vector): number {
 			return Math.atan2(v.y - this.y, v.x - this.x);
 		}
 

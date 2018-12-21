@@ -6,10 +6,15 @@ export module Engine {
     //
     // Types
     //
+    export type AssetRouteList = {
+        sprites? : { [name : string] : string };
+        sounds?  : { [name : string] : string };
+        bgs?     : { [name : string] : string };
+    };
     export type AssetList = {
-        sprites? : { [name : string] : string | HTMLImageElement };
-        sounds?  : { [name : string] : string | HTMLImageElement };
-        bgs?     : { [name : string] : string | HTMLAudioElement };
+        sprites? : { [name : string] : HTMLImageElement };
+        sounds?  : { [name : string] : HTMLAudioElement };
+        bgs?     : { [name : string] : HTMLImageElement };
     };
 
     //
@@ -27,7 +32,7 @@ export module Engine {
     // Setters / Getters
     //
     
-    export function getDelta()    : number            {return dT; };
+    export function getDelta()    : number            { return dT; };
     export function getCanvasEl() : HTMLCanvasElement { return can; };
     export function getAssets()   : AssetList         { return assets; };
 
@@ -64,7 +69,7 @@ export module Engine {
         _cW       : number = window.innerWidth,
         _cH       : number = window.innerHeight,
         targetFPS : number = 30
-    ) {
+    ): void {
         if (document.readyState !== "complete") {
             delayInit = init.bind(null, _exBind, can, _cW, _cH, targetFPS);
             return;
@@ -108,10 +113,10 @@ export module Engine {
         bgLoader          : any;
 
     export function load(
-        _assets            : AssetList,
+        _assets            : AssetRouteList,
         _externalCallback  : ()=>void,
         loadingDrawFunc?   : (fractionLoaded: number)=>void
-    ) : void {
+    ): void {
         if (document.readyState !== "complete") {
             delayLoad = load.bind(null, _assets, _externalCallback, loadingDrawFunc);
             return;
@@ -119,7 +124,7 @@ export module Engine {
         delayLoad = null;
 
         if (!initDone) {
-            throw 'Loading Error: Engine has not been initalized. "load()" call must be preceded by a call to "init()"';
+            console.error(`Bunas Error: Engine has not been initalized. "Engine.load()" call must be preceded by a call to "Engine.init()"`);
         }
         spriteLoader = _assets.sprites || {};
         soundLoader  = _assets.sounds || {};
