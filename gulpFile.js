@@ -1,15 +1,16 @@
 var gulp       = require('gulp'),
-    markdown   = require('gulp-markdown-it'),
     concat     = require('gulp-concat'),
     replace    = require('gulp-replace'),
-    typescript = require('gulp-typescript');
+    fs         = require('fs'),
+    typescript = require('gulp-typescript'),
     tsProject  = typescript.createProject('./dist/tsconfig.json');
 
 gulp.task('condense', function() {
     var saveSpace = [];
-    return gulp.src(['./modules/*.ts', './modules/*.js'])
+    return gulp.src('./modules/*.ts')
         .pipe(concat('Bunas.ts'))
         .pipe(replace(/(import \{.*)|([\n\s]+\/\/.*)/g, ''))
+        .pipe(replace(/\/\*\*(.|\n|\r)*?\*\//g, ''))
         .pipe(replace(/`[^`]*`|'[^']'|"[^"]"/g, function($0) {
             saveSpace.push($0.replace(/(\r?\n|\r)\s*/g, ''));
             return '##saveSpace##';
@@ -26,16 +27,188 @@ gulp.task('compile', function() {
         .pipe(gulp.dest('./dist/'))
 });
 
-gulp.task('markdown', function() {
-    return gulp.src('./docs/pages/*.md')
-        .pipe(markdown())
-        .pipe(gulp.dest(function(f) {
-            return f.base;
-        }));
+gulp.task('autoDoc', function(cb) {
+    gulp.src('./modules/*.ts')
+        .pipe(concat('tmp.txt'))
+        .on('data', function(file) {
+            fs.writeFile(
+                './docs/docs.json',
+                tsToJson(file.contents.toString()),
+                cb
+            );
+        });
 });
 
-gulp.task('default', ['condense', 'compile', 'markdown'], function() {
-    gulp.watch('./modules/*.ts', ['condense']);
+gulp.task('default', ['condense', 'compile'], function() {
+    gulp.watch('./modules/*.ts', ['condense', 'autoDoc']);
     gulp.watch('./dist/dev/*', ['compile']);
-    gulp.watch('./docs/pages/*.md', ['markdown']);
 });
+
+function tsToJson(inp) {
+    let doc = {
+        'common' : {
+            d : 'The following functions and classes are in global scope and so can be imported directly.'
+        }
+    }
+
+    function extractRecurse(data, currentModule, currentClass) {
+        let dataHead = extractHead(data);
+        if (!dataHead) {
+            return;
+        }
+        let dataBody = extractBody(data.substring(dataHead.end));
+        if (dataHead.type === 'module') {
+            let newModule = dataHead.name;
+            doc[newModule] = {
+                d : {
+                    desc: dataHead.desc,
+                    snip: `import { ${dataHead.name} } from './Bunas';`
+                }
+            };
+            extractRecurse(dataBody, newModule);
+            extractRecurse(data.substring(dataHead.end + dataBody.length), currentModule);
+        } else if (dataHead.type === 'class') {
+            if (!doc[currentModule].c) {
+                doc[currentModule].c = {};
+            }
+            doc[currentModule].c[dataHead.name] = {
+                d : {
+                    desc: dataHead.desc,
+                    snip: `import { ${dataHead.name} } from './Bunas';`
+                },
+                m : {}
+            }
+            extractRecurse(dataBody, currentModule, dataHead.name);
+            if (!doc[currentModule].c[dataHead.name].m['class constructor']) {
+                let cStart = dataBody.indexOf('constructor');
+                doc[currentModule].c[dataHead.name].m['class constructor'] = {
+                    desc : '',
+                    snip : extractFuncDeclaration(dataBody.substring(cStart))
+                }
+            }
+        } else {
+            let t = '';
+            switch (dataHead.type) {
+                case 'type': t = 't'; break;
+                case 'interface': t = 't'; break;
+                case 'function': t = currentClass ? 'm' : 'f'; break;
+                case 'let': t = 'v'; break;
+                case 'const': t = 'v'; break;
+            }
+            let snip;
+            if (dataHead.type === 'function') {
+                snip = dataHead.snip;
+                snip = snip.substring(0, snip.lastIndexOf('{'));
+            } else {
+                snip = dataBody.replace('export', '');
+                if (!t) {
+                    snip = 'let ' + snip.replace(/\s+/, '');
+                    t = 'v';
+                }
+            }
+            let route = currentClass ? doc[currentModule].c[currentClass] : doc[currentModule];
+            if (!route[t]) {
+                route[t] = {};
+            }
+            route[t][dataHead.name] = {
+                desc: dataHead.desc,
+                snip: cleanTabs(snip)
+            }
+            extractRecurse(data.substring(dataHead.end + dataBody.length), currentModule, currentClass);
+        }
+    };
+
+    function extractHead(inp) {
+        let descMatch = inp.match(/\/\*\*([\s\S]+?)\*\/.*[\n\r]+/);
+        if (!descMatch) {
+            return;
+        }
+        inp = inp.substring(descMatch.index + descMatch[0].length);
+        let typeRegex = new RegExp(/type|interface|module|let|function|class|public|constructor|const/),
+            typeMatch = inp.match(/.*/)[0].match(typeRegex);
+        typeMatch = typeMatch ? typeMatch[0] : '';
+        if (typeMatch === 'constructor') {
+            nameMatch = 'class constructor';
+            typeMatch = 'function';
+        } else {
+            nameMatch = inp
+                .replace(typeRegex, '')
+                .replace('export', '')
+                .match(/[a-z0-9_$]+/i)[0];
+        }
+        if (typeMatch === 'public') {
+            let nameEnd = inp.indexOf(nameMatch) + nameMatch.length;
+            if (inp.substring(nameEnd).replace(/\s+/, '')[0] === '(') {
+                typeMatch = 'function';
+            } else {
+                typeMatch = 'let';
+            }
+        }
+        let funcMatch = typeMatch === 'function' ? extractFuncDeclaration(inp) : inp.match(/.*/)[0],
+            snip = funcMatch.replace('export', '');
+        
+        return {
+            desc: descMatch[1].replace(/^[\n\r]+/, ''),
+            type: typeMatch,
+            name: nameMatch,
+            snip: snip,
+            end:  descMatch.index + descMatch[0].length
+        }
+    };
+
+    function extractFuncDeclaration(inp) {
+        let bracketCount = 0;
+        for(let i = 0; i < inp.length; i++) {
+            if (inp[i] === '(') {
+                bracketCount++;
+            } else if(inp[i] === ')') {
+                bracketCount--;
+            } else if (inp[i] === '{' && bracketCount === 0) {
+                return inp.substring(0, i + 1);
+            }
+        }
+        console.error('No function declaration found for "' + inp.substr(startPos, 10) + '..."');
+    }
+
+    function extractBody(inp) {
+        let firstLine = inp.match(/.*/)[0];
+        if (!firstLine.match(/\(|\{/)) {
+            return firstLine.substr(0, firstLine.length - 1);
+        }
+        let bracketCount = 0;
+        for (let i = 0; i < inp.length; i++) {
+            if (inp[i] === '}' || inp[i] === ')') {
+                bracketCount--;
+                if (bracketCount === 0 && inp[i] === '}') {
+                    return inp.substring(0, i + 1);
+                }
+            } else if (inp[i] === '{' || inp[i] === '(') {
+                bracketCount++;
+            }
+        }
+        console.error('No body found for "' + inp.substring(0, 10) + '..."');
+    };
+
+    function cleanTabs(inp) {
+        let clean = inp.replace(/^\s*/g, '').replace(/[\n\r]+\s*/g, '\n');
+        let tabCount = 0;
+        for (let i = 0; i < clean.length; i++) {
+            if (clean[i] === '{' || clean[i] === '(') {
+                tabCount++;
+            } else if (clean[i] === '}' || clean[i] === ')') {
+                tabCount--;
+            } else if (clean[i] === '\n' || clean[i] === '\r') {
+                let insertTabs = (clean[i + 1] === '}' || clean[i + 1] === ')') ? Math.max(0, tabCount - 1) : tabCount;
+                clean =
+                    clean.substring(0, i + 1) +
+                    '    '.repeat(insertTabs) +
+                    clean.substring(i + 1);
+                i += insertTabs * 4;
+            }
+        }
+        return clean;
+    }
+
+    extractRecurse(inp, 'common');
+    return JSON.stringify(doc, null, '\t');
+}

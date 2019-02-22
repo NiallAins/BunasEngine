@@ -1,4 +1,6 @@
 import { Engine } from './Engine';
+import { GameObject } from './Core';
+import { Graphics } from './Graphics';
 
 export module Input {
     //
@@ -9,15 +11,19 @@ export module Input {
         y : number;
     };
 
+    type ClickableObject = {
+        obj: GameObject;
+        x0: number;
+        x1: number;
+        y0: number;
+        y1: number;
+        circ: boolean;
+    };
+
     interface KeyBoard {
         down    : string;
         up      : string;
         pressed : string[];
-    };
-
-    interface Mouse extends Point {
-        left  : MouseButton;
-        right : MouseButton;
     };
 
     interface MouseButton {
@@ -32,6 +38,11 @@ export module Input {
         dragPts    : Point[];
     };
 
+    export interface Mouse extends Point {
+        left  : MouseButton;
+        right : MouseButton;
+    };
+
     //
     // Private Variables
     //
@@ -43,13 +54,14 @@ export module Input {
             dragPts   : []
         },
         dblClickWait : number = 500,
-        customCursor : (ctx: CanvasRenderingContext2D, delta: number) => void;
+        customCursor : (ctx: CanvasRenderingContext2D, delta: number) => void,
+        clickableObjects: ClickableObject[] = [];
 
     //
     // Public Variables
     //
-    export
-        let mouse: Mouse = {
+    export let
+        mouse: Mouse = {
             x:    0,
             y:    0,
             left: {
@@ -107,7 +119,9 @@ export module Input {
         toggleContextMenu(false);
     };
 
-    export function clear(): void {
+    export function step(): void {
+        emitClickableObjectEvents();
+
         resetMouseButton(mouse.left);
         resetMouseButton(mouse.right);
 
@@ -145,6 +159,36 @@ export module Input {
                 customCursor(ctx, delta);
             ctx.restore();
         }
+    };
+
+    export function setMouseListener(g: GameObject, width: number, height: number, circular: boolean = false, centered: boolean = false) {
+        let x0, y0, x1, y1 = 0;
+        if (circular) {
+            x1 = y1 = width / 2;
+            if (!centered) {
+                x0 = y0 = width / 2;
+            }
+        } else if (centered) {
+            x0 = -width / 2;
+            x1 = width / 2;
+            y0 = -height / 2;
+            y1 = height /2;
+        } else {
+            x1 = width;
+            y1 = height;
+        }
+        clickableObjects.push({
+            obj: g,
+            x0: x0,
+            x1: x1,
+            y0: y0,
+            y1: y1,
+            circ: circular
+        });
+    };
+
+    export function setMouseListenerFromSprite(g: GameObject, sprite: Graphics.Sprite, centered: boolean = false) {
+        setMouseListener(g, sprite.width, sprite.height, false, centered);
     };
 
     //
@@ -235,5 +279,29 @@ export module Input {
         let keyName = e.code;
         key.up = keyName;
         key.pressed.splice(key.pressed.indexOf(keyName), 1);
+    };
+
+    function emitClickableObjectEvents() {
+        clickableObjects.forEach(o => {
+            if (o.obj.onMouseOver) {
+                let clicked: boolean;
+                if (o.circ) {
+                    clicked =
+                        Math.sqrt(
+                            Math.pow(mouse.y - (o.obj.y + o.y0), 2) +
+                            Math.pow(mouse.x - (o.obj.x + o.x0), 2)
+                        ) < o.x1;
+                } else {
+                    clicked =
+                        o.obj.x - o.x0 < mouse.x &&
+                        o.obj.x + o.x1 > mouse.x &&
+                        o.obj.y - o.y0 > mouse.y &&
+                        o.obj.y + o.y1 > mouse.y;
+                }
+                if (clicked) {
+                    o.obj.onMouseOver.call(o.obj, mouse);
+                }
+            }
+        });
     };
 }

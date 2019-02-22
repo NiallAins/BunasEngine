@@ -138,9 +138,11 @@ export module Matter {
             start: Vector,
             end: Vector,
             width: number = 1
-        ) {
-            let bodies: Body[] = area.objs.filter(b => b instanceof BodyBase);
-            return bodies.filter(b => M.Query.ray([b], start, end, width));
+        ): BodyBase[] {
+            return area.objs.filter(b => 
+                b instanceof BodyBase &&
+                M.Query.ray([b.body], start, end, width)
+            ).map(b => b as BodyBase);
         }
     };
 

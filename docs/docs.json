@@ -1,0 +1,67 @@
+{
+	"common": {
+		"d": "The following functions and classes are in global scope and so can be imported directly.",
+		"t": {
+			"AssetRouteList": {
+				"desc": " List of assets names with relative file path ",
+				"snip": "type AssetRouteList = {\n    sprites? : { [name : string] : string };\n    sounds?  : { [name : string] : string };\n    bgs?     : { [name : string] : string };\n}"
+			},
+			"AssetList": {
+				"desc": " List of assets names with loaded asset object, generated from an AssetRouteList ",
+				"snip": "type AssetList = {\n    sprites? : { [name : string] : HTMLImageElement };\n    sounds?  : { [name : string] : HTMLAudioElement };\n    bgs?     : { [name : string] : HTMLImageElement };\n}"
+			}
+		},
+		"v": {
+			"preStep": {
+				"desc": " Lifecycle hook; called before each engine step event ",
+				"snip": "let preStep  : ()=>void = ()=>{}"
+			},
+			"postStep": {
+				"desc": " Lifecycle hook; called after each engine step event ",
+				"snip": "let postStep : ()=>void = ()=>{}"
+			},
+			"preDraw": {
+				"desc": " Lifecycle hook; called before each engine draw event ",
+				"snip": "let preDraw  : ()=>void = ()=>{}"
+			},
+			"postDraw": {
+				"desc": " Lifecycle hook; called after each engine draw event ",
+				"snip": "let postDraw : ()=>void = ()=>{}"
+			},
+			"cW": {
+				"desc": " Target canvas element width ",
+				"snip": "let cW : number"
+			},
+			"cH": {
+				"desc": " Target canvas element height ",
+				"snip": "let cH : number"
+			}
+		},
+		"f": {
+			"getDelta": {
+				"desc": " Returns current FPS as a fraction of target FPS ",
+				"snip": "function getDelta(): number "
+			},
+			"getCanvasEl": {
+				"desc": " Returns reference to target canvas HTML element  ",
+				"snip": "function getCanvasEl(): HTMLCanvasElement "
+			},
+			"getAssets": {
+				"desc": " Returns list of all current assets ",
+				"snip": "function getAssets(): AssetList "
+			},
+			"setTargetFPS": {
+				"desc": " Set the target FPS from the default of 30 FPS ",
+				"snip": "function setTargetFPS(newFPS): void "
+			},
+			"init": {
+				"desc": "        Initalises engine and begins application.\r\n        An external callback function must be provided as an entry point to your code; called once initalistion has complete.\r\n        The target canvas may be provided as an element or id of an element. Otherwise the first canvas element found will be used, or one will be created.\r\n    ",
+				"snip": "function init(\n    externalCallback: Function,\n    canEl? : string | HTMLElement, \n    canWidth? : number,\n    canHeight? : number\n): void "
+			},
+			"preLoad": {
+				"desc": " \r\n        Loads image and sound assets from provided list of routes before application is initalised\r\n        Optional drawing function allows creation of custom loading bar\r\n    ",
+				"snip": "function preLoad(\n    assets            : AssetRouteList,\n    loadingDrawFunc?  : (fractionLoaded: number)=>void\n) "
+			}
+		}
+	}
+}

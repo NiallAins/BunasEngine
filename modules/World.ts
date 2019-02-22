@@ -217,13 +217,17 @@ export module World {
         activeObjs = areas.reduce((t, a) => t.concat(a.objs), []);
 
         for (let i = 0, len = activeObjs.length; i < len; i += 1) {
-            activeObjs[i].startStep(dT);
+            if (activeObjs[i].startStep) {
+                activeObjs[i].startStep(dT);
+            }
         }
         for (let i = 0, len = activeObjs.length; i < len; i += 1) {
             activeObjs[i].step(dT);
         }
         for (let i = 0, len = activeObjs.length; i < len; i += 1) {
-            activeObjs[i].endStep(dT);
+            if (activeObjs[i].endStep) {
+                activeObjs[i].endStep(dT);
+            }
         }
     };
 
@@ -247,13 +251,17 @@ export module World {
                     ctx.translate(v.x - v.width, v.y - v.height);
 
                     for (let i = 0, len = visibleObjs.length; i < len; i += 1) {
-                        visibleObjs[i].startDraw(ctx, dT);
+                        if (activeObjs[i].startDraw) {
+                            visibleObjs[i].startDraw(ctx, dT);
+                        }
                     }
                     for (let i = 0, len = visibleObjs.length; i < len; i += 1) {
                         visibleObjs[i].draw(ctx, dT);
                     }
                     for (let i = 0, len = visibleObjs.length; i < len; i += 1) {
-                        visibleObjs[i].endDraw(ctx, dT);
+                        if (activeObjs[i].endDraw) {
+                            visibleObjs[i].endDraw(ctx, dT);
+                        }
                     }
                 ctx.restore();
             });

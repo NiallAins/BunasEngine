@@ -1,9 +1,9 @@
 import { World } from './World';
+import { Input } from './Input';
 
-//
 //  Interfaces
 //
-export class GameObject {
+export abstract class GameObject {
     public area;
 
     constructor(
@@ -19,13 +19,15 @@ export class GameObject {
         World.globalArea.addObject(this);
     }
 
-    public startStep (delta: number): void {};
     public step      (delta: number): void {};
-    public endStep   (delta: number): void {};
+    public startStep?(delta: number): void;
+    public endStep?  (delta: number): void;
 
-    public startDraw (ctx: CanvasRenderingContext2D, delta: number): void {};
     public draw      (ctx: CanvasRenderingContext2D, delta: number): void {};
-    public endDraw   (ctx: CanvasRenderingContext2D, delta: number): void {};
+    public startDraw?(ctx: CanvasRenderingContext2D, delta: number): void;
+    public endDraw?  (ctx: CanvasRenderingContext2D, delta: number): void;
+
+    public onMouseOver?(m: Input.Mouse): void;
 
     public die(): void {
         this.area.removeObject(this);

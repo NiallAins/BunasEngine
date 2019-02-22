@@ -1,8 +1,8 @@
 import { Engine, Debug } from './Bunas';
 
-Engine.init();
-Engine.load({}, start);
+Engine.init(start);
 
-function start() {
+function start():void {
+	Debug.toggle(true);
 	Debug.log('Bunas is Running!');
 }

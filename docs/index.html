@@ -4,121 +4,60 @@
     <title> Bunas Engine | Docs </title>
 
     <style>
-        body {
+        div[app] {
             font-family: Tahoma, Geneva, sans-serif;
-            font-size: 14px;
+            font-size: 13px;
             line-height: 1.6em;
             padding: 30px;
         }
-        section {
-            display: none;
-            width: 100%;
-            min-height: 50vh;
+
+        h1 {
+            margin: 4px 0 10px;
         }
-        nav>ul>li>li>ul {
-            display: none;
-            text-transform: capitalize;
-        }
-        body[data-section="0"] section:nth-child(1),
-        body[data-section="1"] section:nth-child(2),
-        body[data-section="2"] section:nth-child(3),
-        body[data-section="3"] section:nth-child(4),
-        body[data-section="4"] section:nth-child(5),
-        body[data-section="5"] section:nth-child(6),
-        body[data-section="6"] section:nth-child(7),
-        body[data-section="7"] section:nth-child(8),
-        body[data-section="8"] section:nth-child(9),
-        body[data-section="0"] nav>ul>li:nth-child(1)>li>ul,
-        body[data-section="1"] nav>ul>li:nth-child(2)>li>ul,
-        body[data-section="2"] nav>ul>li:nth-child(3)>li>ul,
-        body[data-section="3"] nav>ul>li:nth-child(4)>li>ul,
-        body[data-section="4"] nav>ul>li:nth-child(5)>li>ul,
-        body[data-section="5"] nav>ul>li:nth-child(6)>li>ul,
-        body[data-section="6"] nav>ul>li:nth-child(7)>li>ul,
-        body[data-section="7"] nav>ul>li:nth-child(8)>li>ul,
-        body[data-section="8"] nav>ul>li:nth-child(9)>li>ul {
-            display: block;
-        }
-        body[data-section="0"] nav>ul>li:nth-child(1)>li,
-        body[data-section="1"] nav>ul>li:nth-child(2)>li>a,
-        body[data-section="2"] nav>ul>li:nth-child(3)>li>a,
-        body[data-section="3"] nav>ul>li:nth-child(4)>li>a,
-        body[data-section="4"] nav>ul>li:nth-child(5)>li>a,
-        body[data-section="5"] nav>ul>li:nth-child(6)>li>a,
-        body[data-section="6"] nav>ul>li:nth-child(7)>li>a,
-        body[data-section="7"] nav>ul>li:nth-child(8)>li>a,
-        body[data-section="8"] nav>ul>li:nth-child(9)>li>a{
-            color: dodgerblue;
-            font-weight: bold;
-        }
-        nav {
-            width: 230px;
-            float: left;
-        }
-        nav a {
-            text-decoration: none;
+
+        h1 span {
+            font-weight: 100;
+            font-size: 20px;
             color: black;
         }
-        nav a:visited {
-            color: black;
+
+        .projectDesc {
+            margin-bottom: 20px;
         }
-        nav ul {
-            margin-left: 0;
-        }
-        nav li {
-            font-size: 16px;
-            margin: 10px 0;
+
+        .expand h1,
+        .expand h2,
+        .expand h3,
+        .expand h4 {
             cursor: pointer;
         }
-        ul {
-            list-style: none;
-            padding: 0;
-            margin-left: 75px;
+        .expand div {
+            height: 40px;
+            overflow: hidden;
+            margin-left: 25px;
         }
-        ul ul {
-            margin-left: 30px;
+        .expand div.open {
+            height: auto;
         }
-        ul ul>li:before {
-            content: '' !important;
+        .expand>div {
+            margin-left: 0;
         }
-        #container ul>li:before {
-            content: '- ';
-            font-size: 20px;
-            vertical-align: -16%;
-            line-height: 8px;
-        }
-        #container {
-            float: left;
-            width: calc(100% - 300px);
-            padding: 30px;
-            border-left: 1px solid gray;
-        }
-        h1, h2, h3, h4, h5 {
+
+        h2, h3, h4, h5 {
             text-transform: capitalize;
+            margin-top: 10px;
+            margin-bottom: 0px;
         }
-        h1 {
+        h2 {
             font-weight: bold;
             color: dodgerblue;
         }
-        h2 {
-            margin-top: 40px;
+        h3, h4 {
+            font-weight: 300;
+            font-size: 13px;
         }
         h3 {
-            margin-top: 20px;
-            margin-left: 15px;
-        }
-        h2, h3 {
-            font-weight: 300;
-        }
-        h3+p {
-            margin-left: 30px;
-        }
-        h4 {
-            margin-top: 30px;
-            margin-left: 30px;
-        }
-        p, pre {
-            margin-left: 45px;
+            text-transform: uppercase;
         }
         em {
             font-style: normal;
@@ -126,74 +65,60 @@
         }
         code {
             white-space: pre-wrap;
-            padding: 15px 30px;
-            border-radius: 5px;
-        }  
-        
-        .hljs{
-            display:block;
-            overflow-x:auto;
-            background:#F0F0F0;
+            padding: 10px;
+            padding-right: 20px;
+            border-radius: 4px;
+            min-width: 400px;
         }
-        .hljs,.hljs-subst{
-            color:#444
+        pre, .itemDesc {
+            margin-top: 5px;
+            margin-bottom: 10px;
         }
+
+        .itemDesc {
+            white-space: pre-line;
+        }
+
         .hljs-comment{
-            color:#888888
-        }
-        .hljs-keyword,.hljs-attribute,.hljs-selector-tag,.hljs-meta-keyword,.hljs-doctag,.hljs-name{
-            font-weight:bold
-        }
-        .hljs-type,.hljs-string,.hljs-number,.hljs-selector-id,.hljs-selector-class,.hljs-quote,.hljs-template-tag,.hljs-deletion{
-            color:#880000
-        }
-        .hljs-title,.hljs-section{
-            color:#880000;
-            font-weight:bold
+            color:#888888;
         }
         .hljs-regexp,.hljs-symbol,.hljs-variable,.hljs-template-variable,.hljs-link,.hljs-selector-attr,.hljs-selector-pseudo{
-            color:#BC6060
+            color:#BC6060;
         }
         .hljs-literal{
-            color:#78A960
+            color:#78A960;
         }
         .hljs-meta{
-            color:#1f7199
+            color:#1f7199;
         }
         .hljs-meta-string{
-            color:#4d99bf
+            color:#4d99bf;
         }
         .hljs-emphasis{
-            font-style:italic
-        }
-        .hljs-strong{
-            font-weight:bold
+            font-style: italic;
         }
         .hljs{
-            display:block;
+            display:inline-block;
             background:#272822;
-            color:#ddd
+            color:#ddd;
         }
         .hljs-tag,.hljs-keyword,.hljs-selector-tag,.hljs-literal,.hljs-strong,.hljs-name{
-            color:#f92672
+            color:#f371a0;
         }
         .hljs-code, .hljs-number {
-            color:#66d9ef
+            color:#66d9ef;
         }
         .hljs-class .hljs-title{
-            color:white
+            color:white;
         }
         .hljs-attribute,.hljs-symbol,.hljs-regexp,.hljs-link{
-            color:#bf79db
+            color:#bf79db;
         }
         .hljs-string,.hljs-bullet,.hljs-subst,.hljs-title,.hljs-section,.hljs-emphasis,.hljs-type,.hljs-built_in,.hljs-builtin-name,.hljs-selector-attr,.hljs-selector-pseudo,.hljs-addition,.hljs-variable,.hljs-template-tag,.hljs-template-variable{
-            color:#a6e22e
+            color:#b2e44d;
         }
         .hljs-comment,.hljs-quote,.hljs-deletion,.hljs-meta{
-            color:#75715e
-        }
-        .hljs-keyword,.hljs-selector-tag,.hljs-literal,.hljs-doctag,.hljs-title,.hljs-section,.hljs-type,.hljs-selector-id{
-            font-weight:bold
+            color:#75715e;
         }
         .hljs-built_in,.hljs-bullet,.hljs-code,.hljs-addition{
             color: orange;
@@ -202,75 +127,87 @@
         }
     </style>
 
-    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.4.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.6/vue.min.js"></script>
 </head>
-
-<body data-section="0">
-    <nav>
-        <h2>Modules</h2>
-        <ul id="moduleNav">
-        </ul>
-    </nav>
-
-    <div id="container">
-        <section>
-            <h1> Overview </h1>
-            This site contains the complete documentation for the <em>Bunas engine</em>, including explainations of all functions, classes and interfaces.
-            Example code has also been included to add clarify functionaily where needed.
-            <br/><br/>
-            The Bunas Engine is seperated into several modules each encapsulating a particular set of featues.
-            <br/>
-            The <em>Core</em> module must be imported for all projects as it contins functions for initlaizing and running the engine.
-            <br/>
-            All other modules are optional and can be imported as needed for your specific project.
-        </section>
+<body>
+    <div app>
+        <h1>{{ projectTitle }} <span>Docs</span></h1>
+        <div class="projectDesc"> {{ projectDesc }} </div>
+        <div class="expand">
+            <div
+                v-for="(modContent, modLabel, i) in docs"
+                :class="{ open : curModule === i }"
+            >
+                <h2 @click="
+                        curSection = -1;
+                        curItem = -1;
+                        curModule = curModule === i ? -1 : i
+                    "
+                >
+                    {{ modLabel }}
+                </h2>
+                <div
+                    v-for="(secContent, secLabel, j) in modContent"
+                    :class="{ open : curSection === j || secLabel === 'd' }"
+                >
+                    <span v-if="secLabel === 'd'">
+                        <p>{{ secContent.desc }}</p>
+                        <pre v-if="secContent.snip"><code class="language-ts">{{ secContent.snip }}</code></pre>
+                    </span>
+                    <h3 v-if="secLabel !== 'd'"
+                        @click="
+                            curItem = -1;
+                            curSection = curSection === j ? -1 : j
+                        "
+                    >
+                        {{ secLabels[secLabel] }}
+                    </h3>
+                    <div
+                        v-if="secLabel !== 'd' && secLabel !== 'c'"
+                        v-for="(itemContent, itemLabel, k) in secContent"
+                        :class="{ open : curItem === k }"
+                    > 
+                        <h4 @click="curItem = curItem === k ? -1 : k">
+                            {{ itemLabel }}
+                        </h4>
+                        <div class="open">
+                            <p class="itemDesc">{{ itemContent.desc }}</p>
+                            <pre><code class="language-ts">{{ itemContent.snip }}</code></pre>
+                        </div>
+                    </div>
+                    <div
+                        v-if="secLabel === 'c'"
+                        v-for="(classContent, classLabel, k) in secContent"
+                        class="open"
+                    >
+                        <h3>
+                            {{ classLabel }}
+                        </h3>
+                        <div
+                            class="open"
+                            v-for="(itemContent, itemLabel, l) in classContent"
+                        >
+                            <span v-if="itemLabel === 'd'">
+                                <p>{{ itemContent.desc }}</p>
+                                <pre v-if="itemContent.snip"><code class="language-ts">{{ itemContent.snip }}</code></pre>
+                            </span>
+                            <h4 @click="curItem = curItem === l ? -1 : k">
+                                {{ itemLabel }}
+                            </h4>
+                            <div class="open">
+                                <p class="itemDesc">{{ itemContent.desc }}</p>
+                                <pre><code class="language-ts">{{ itemContent.snip }}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
-        let nav       = document.getElementById('moduleNav'),
-            container = document.getElementById('container'),
-            sections = [
-                'Engine',
-                'Graphics',
-                'Debug'
-            ],
-            loading = sections.length;
-        setMenuItem('<li>Overview</li>');
-
-        sections.forEach(function(m, i) {
-            var xhttp = new XMLHttpRequest();
-            xhttp.onreadystatechange = function() {
-                if (this.readyState == 4 && this.status == 200) {
-                    var section = document.createElement('section');
-                    section.innerHTML = this.responseText.replace(
-                        /(<h[0-9])>([^<]+)/gi,
-                        (m, p1, p2) => p1 + ' id="' + p2.replace(/ /g, '-').toLowerCase() + '">' + p2
-                    );
-                    container.appendChild(section);
-                    var toc = section.getElementsByTagName('ul')[0];
-                    setMenuItem(toc.innerHTML);
-                    section.removeChild(toc);
-
-                    loading--;
-                    if (loading === 0) {
-                        hljs.initHighlighting();
-                        hljsAdditions();
-                    }
-                }
-            }
-            xhttp.open('GET', './pages/' + m + '.html', true);
-            xhttp.send();
-        });
-        function setMenuItem(toc) {
-            var pos = nav.childElementCount;
-            var item = document.createElement('li');
-            item.onclick = function() {
-                document.body.setAttribute('data-section', pos);
-            };
-            item.innerHTML = toc;
-            nav.appendChild(item);
-        }
         function hljsAdditions() {
             [].forEach.call(
                 document.getElementsByTagName('code'),
@@ -283,7 +220,44 @@
                 )
             );
         }
+
+        let vm = new Vue({
+            el: '[app]',
+            data: {
+                projectTitle: 'Bunas Engine',
+                projectDesc: 'Bunas is a HTML5 game engine written in Typescript. The aim of Bunas is to facilitate the development of interactive Typescipt or Javascript applications using HTML5 Canvas.',
+                docs: { inital : 'hello'},
+                secLabels: {
+                    d: 'description',
+                    t: 'types & interfaces',
+                    f: 'functions',
+                    m: 'methods',
+                    v: 'variables',
+                    c: 'classes'
+                },
+                curModule: -1,
+                curSection: -1,
+                curItem: -1
+            },
+            created: function() {
+                let xhttp = new XMLHttpRequest(),
+                    vm = this;
+                xhttp.onreadystatechange = function() {
+                    if (this.readyState == 4 && this.status == 200) {
+                        vm.docs = JSON.parse(this.responseText);
+                        setTimeout(() => {
+                            hljs.initHighlighting();
+                            hljsAdditions();
+                        }, 1000);
+                    }
+                }
+
+                xhttp.open('GET', './docs.json', true);
+                xhttp.send();
+            }
+        });
     </script>
+
 </body>
 
 </html>

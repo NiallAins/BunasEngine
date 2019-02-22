@@ -21,16 +21,30 @@ export module Graphics {
 
     export interface ISprite {
         duration: number;
-        draw: (x: number, y: number, ang: number, ctx: CanvasRenderingContext2D)=>void;
+        draw: (ctx: CanvasRenderingContext2D, x: number, y: number, ang: number)=>void;
         toggle: (play: boolean, setFrame: number)=>void;
         reverse: ()=>void;
         onEnd: ()=>void;
     };
 
+    export let
+        sprites: { [name: string] : HTMLImageElement },
+        bgs: { [name: string] : HTMLImageElement };
+
+    export function setAssets(
+        spriteAssets: { [name: string] : HTMLImageElement },
+        bgAssets:{ [name: string] : HTMLImageElement }
+    ) {
+        sprites = spriteAssets;
+        bgs = bgAssets;
+    }
+
+
     //
     // Class: Bitmap Sprite
     //
     export class Sprite implements ISprite {
+        private sprite    : HTMLImageElement;
         public width      : number;
         public height     : number;
         public duration   : number;
@@ -38,18 +52,17 @@ export module Graphics {
         private frCurrent : number = 0;
 
         constructor(
-            private sprite  : HTMLImageElement,
+            sprite  : string | HTMLImageElement,
             private frTotal : number,
-            private frRate  : number,
-            private ctx     : CanvasRenderingContext2D
+            private frRate  : number
         ) {
-            this.width  = sprite.width / frTotal;
-            this.height = sprite.height;
-            this.frRate = 60;
+            this.sprite = typeof sprite === 'string' ? sprites[sprite] : sprite;
+            this.width  = this.sprite.width / frTotal;
+            this.height = this.sprite.height;
         };
         
-        public draw(canX, canY, delta = 1): void {
-            this.ctx.drawImage(
+        public draw(ctx: CanvasRenderingContext2D, canX: number, canY: number, ang: number = 0): void {
+            ctx.drawImage(
                 this.sprite,
                 Math.floor(this.frCurrent) * this.width, 0,
                 this.width, this.height,
@@ -58,12 +71,12 @@ export module Graphics {
             );
             if (this.frRate !== 0) {
                 if (this.frRate > 1) {
-                    this.frCurrent += (this.frRate / 33) * delta;
+                    this.frCurrent += (this.frRate / 33);
                     if (this.frCurrent >= this.frTotal) {
                         this.frCurrent = 0;
                     }
                 } else {
-                    this.frCurrent -= (this.frRate / 30) * delta;
+                    this.frCurrent -= (this.frRate / 30);
                     if (this.frCurrent <= 0) {
                         this.frCurrent = this.frTotal - 1;
                     }
@@ -95,7 +108,7 @@ export module Graphics {
         ) {
         };
 
-        public draw(x: number, y: number, ang: number, ctx: CanvasRenderingContext2D) {
+        public draw(ctx: CanvasRenderingContext2D, x: number, y: number, ang: number = 0) {
             ctx.save();
                 ctx.translate(x, y);
                 ctx.rotate(ang);
@@ -156,7 +169,7 @@ export module Graphics {
             this.duration = this.state.duration;
         };
 
-        public draw(x: number, y: number, ang: number, ctx: CanvasRenderingContext2D) {
+        public draw(ctx: CanvasRenderingContext2D, x: number, y: number, ang: number = 0) {
             ctx.save();
                 ctx.translate(x, y);
                 ctx.rotate(ang);
