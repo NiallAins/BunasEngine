@@ -1,0 +1,2610 @@
+import { World } from './World';
+import { Input } from './Input';
+
+//
+//  Interfaces
+//
+/**
+    Base class from which all other game objects will inherit
+*/
+export abstract class GameObject {
+    /** Current area object is in */
+    public area: World.Area;
+
+    /**
+        All game objects will sorted by z to determine draw/step order.
+        If clipRadius > 0, draw/step will only be called if object is within clipRadius pixels of an active World.View port.
+    */
+    constructor(
+        public x : number,
+        public y : number,
+        public z : number = 0,
+        public clipRadius : number = 0
+    ) {
+        if (!World.globalArea) {
+            World.globalArea = new World.Area();
+            World.globalArea.open();
+        }
+        World.globalArea.addObject(this);
+    }
+
+    /** Called on each Engine step event */
+    public step      (delta: number): void {};
+    /** Called at start of each Engine step event */
+    public startStep?(delta: number): void;
+    /** Called at end of each Engine step event */
+    public endStep?  (delta: number): void;
+
+    /** Called on each Engine draw event */
+    public draw      (ctx: CanvasRenderingContext2D, delta: number): void {};
+    /** Called at start of each Engine draw event */
+    public startDraw?(ctx: CanvasRenderingContext2D, delta: number): void;
+    /** Called at end of each Engine draw event */
+    public endDraw?  (ctx: CanvasRenderingContext2D, delta: number): void;
+
+    /** Called on object mouseover if Input.setMouseListener() has been set */
+    public onMouseOver?(m: Input.Mouse): void;
+
+    /* Removes instance from game */
+    public die(): void {
+        this.area.removeObject(this);
+    }
+}
+import { Engine } from './Engine';
+import { Input } from './Input';
+
+/** Provides helper functions to debug application */
+export module Debug {
+    //
+    // Private Variables
+    //
+    let show       : boolean = false,
+        prevT      : number = 0,
+        dT         : string = '1.000',
+        logs       : string[] = [],
+        permLog    : string[] = [],
+        container  : HTMLDivElement = document.createElement('div'),
+        output     : HTMLPreElement = document.createElement('pre'),
+        dTInterval = setInterval(function() {
+            dT = Engine.getDelta().toFixed(3).toString();
+        }, 500);
+    
+    container.setAttribute('style', `
+        position: fixed;
+        height: 100vh;
+        padding-top: 20px; 
+        top: 0px;
+        left: 20px;
+        width: 60vw;
+        pointer-events: none;
+    `);
+    container.appendChild(output);
+
+    //
+    // Public Variables
+    //
+    export let
+        /** Debugger output font size */
+        fontSize        : number = 14,
+        /** Degugger output font color */
+        color           : string = 'dodgerblue',
+        /** Toggle default proporties displayed in debugger */
+        defaultOptions  : {[option: string] : boolean} = {
+            dt: true, 
+            input : true
+        };
+
+    //
+    // Public Methods
+    //
+    /** Turn debugger on/off */
+    export function toggle(state?): void {
+        if (state !== show) {
+            show = state === undefined ? !show : state;
+            show ? document.body.appendChild(container) : document.body.removeChild(container);
+        }
+    };
+
+    /**
+        Log a variable to the debugger.
+        Objects will be stringifyed.
+        If logging a variable on every step, set persist = false to continually clear previous output.
+    */
+    export function log(data: any, persist = true): void {
+        let entry = JSON.stringify(data, null, '\t');
+        persist ? permLog.push(entry) : logs.push(entry);
+    };
+
+    /** Clear debugger output */
+    export function clear(): void {
+        permLog = [];
+    };
+
+    export function draw(ctx: CanvasRenderingContext2D): void {
+        output.setAttribute('style', `
+            font-size: ${fontSize};
+            color: ${color};
+            max-height: 100%;
+            overflow: hidden;
+            white-space: pre-wrap;
+        `);
+
+        output.innerHTML = '';
+        if (defaultOptions['dt']) {
+            output.innerHTML += `dT    : ${dT}<br/>`;
+        }
+        if (defaultOptions['input']) {
+            output.innerHTML += `Input : ${getInputData()}<br/><br/>`;
+        }
+        output.innerHTML += permLog.concat(logs).join('<br/>');
+
+        output.scrollTop = output.scrollHeight;
+        logs = [];
+    };
+
+    //
+    // Private Methods
+    //
+    function getInputData(): string {
+        var str = [];
+        str.push(`<br/>    keyPressed = [${Input.key.pressed.join(', ')}]`);
+        str.push(`    mouseState =`);
+        str.push(`        x: ${Input.mouse.x}`);
+        str.push(`        y: ${Input.mouse.y}`);
+        if (Input.mouse.left.pressed)  str.push(`    left.pressed`);
+        if (Input.mouse.left.dragging) str.push(`    left.dragging ${Input.mouse.left.drag ? ' left.drag' : ''}`);
+        if (Input.mouse.left.dragPts.length) {
+            str.push(`        left.dragPts: [<br/>${Input.mouse.left.dragPts.reduce((str, p) =>
+                str = (str.length > 200 ? '...' + str.substr(-200) : str) + '(' + p.x + ', ' + p.y + ')', '')}]`);
+        }
+        if (Input.mouse.right.pressed)  str.push(`    right.pressed`);
+        if (Input.mouse.right.dragging) str.push(`    right.dragging ${Input.mouse.right.drag ? 'right.drag' : ''}`);
+        if (Input.mouse.right.dragPts.length) {
+            str.push(`        right.dragPts: [<br/>${Input.mouse.right.dragPts.reduce((str, p) =>
+                str = (str.length > 200 ? '...' + str.substr(-200) : str) + '(' + p.x + ', ' + p.y + ')', '')}]`);
+        }
+        return str.join('<br/>');
+    };
+    
+}
+import { Debug } from './Debug';
+import { Input } from './Input';
+import { World } from './World';
+
+/** This module controls initalization of engine, asset loading and application lifecycle loop */
+export module Engine {
+    //
+    // Types
+    //
+    /** List of assets names with relative file path */
+    export type AssetRouteList = {
+        sprites? : { [name : string] : string };
+        sounds?  : { [name : string] : string };
+        bgs?     : { [name : string] : string };
+    };
+    /** List of assets names with loaded asset object, generated from an AssetRouteList */
+    export type AssetList = {
+        sprites? : { [name : string] : HTMLImageElement };
+        sounds?  : { [name : string] : HTMLAudioElement };
+        bgs?     : { [name : string] : HTMLImageElement };
+    };
+    
+    //
+    // Private Variables
+    //
+    let
+        can: HTMLCanvasElement,
+        ctx: CanvasRenderingContext2D,
+        dT: number = 0,
+        currentT: number = +new Date(),
+        frameDur: number = 33,
+        assets: AssetList;
+
+    //
+    // Public Variables
+    //
+    export let
+        /** Lifecycle hook; called before each engine step event */
+        preStep  : ()=>void = ()=>{},
+        /** Lifecycle hook; called after each engine step event */
+        postStep : ()=>void = ()=>{},
+        /** Lifecycle hook; called before each engine draw event */
+        preDraw  : ()=>void = ()=>{},
+        /** Lifecycle hook; called after each engine draw event */
+        postDraw : ()=>void = ()=>{},
+        /** Target canvas element width */
+        cW : number,
+        /** Target canvas element height */
+        cH : number;
+
+    //
+    // Setters / Getters
+    //
+    /** Returns current FPS as a fraction of target FPS */
+    export function getDelta(): number {
+        return dT;
+    };
+    /** Returns reference to target canvas HTML element  */
+    export function getCanvasEl(): HTMLCanvasElement {
+        return can;
+    };
+    /** Returns list of all current assets */
+    export function getAssets(): AssetList {
+        return assets;
+    };
+    /** Set the target FPS from the default of 30 FPS */
+    export function setTargetFPS(newFPS): void {
+        frameDur = 1000 / newFPS;
+    };
+
+    //
+    // Initalisation
+    //
+    let
+        _externalCallback: Function,
+        delayLoad: ()=>void,
+        delayInit: ()=>void,
+        initComplete: boolean = false;
+
+    document.onreadystatechange = function() {
+        if (document.readyState === 'complete' && delayInit) {
+            delayInit();
+        }
+    };
+
+    /**
+        Initalises engine and begins application.
+        An external callback function must be provided as an entry point to your code; called once initalistion has complete.
+        The target canvas may be provided as an element or id of an element. Otherwise the first canvas element found will be used, or one will be created.
+    */
+    export function init(
+        externalCallback: Function,
+        canEl? : string | HTMLElement, 
+        canWidth? : number,
+        canHeight? : number
+    ): void {
+        if (initComplete) {
+            console.error('Bunas Error: Engine instance has already been initalised');
+            return;
+        }
+        if (document.readyState !== 'complete') {
+            delayInit = init.bind(null, externalCallback, canEl, canWidth, canHeight);
+            return;
+        } else {
+            delayInit = null;
+            initComplete = true;
+        }
+
+        if (canEl) {
+            can = <HTMLCanvasElement>(typeof canEl === 'string' ? document.getElementById(canEl) : canEl);
+            if (canWidth) {
+                can.width = canWidth;
+            }
+            if (canHeight) {
+                can.height = canHeight;
+            }
+        } else {
+            can = document.getElementsByTagName('canvas')[0];
+            if (!can) {
+                can = document.createElement('canvas');
+                document.body.appendChild(can);
+            }
+            can.width = canWidth || window.innerWidth;
+            can.height = canHeight || window.innerHeight;
+        }
+        cW = can.width;
+        cH = can.height;
+        ctx = can.getContext('2d');
+        ctx.translate(0.5, 0.5);
+
+        Input.init();
+        _externalCallback = externalCallback;
+
+        if (delayLoad) {
+            delayLoad();
+        } else {
+            initLoop();
+        }
+    };
+
+    //
+    // Asset Loading
+    //
+    let
+        loading           : number = 0,
+        assetTotal        : number,
+        spriteLoader      : any,
+        soundLoader       : any,
+        bgLoader          : any;
+
+    /** 
+        Loads image and sound assets from provided list of routes before application is initalised
+        Optional drawing function allows creation of custom loading bar
+    */
+    export function preLoad(
+        assets            : AssetRouteList,
+        loadingDrawFunc?  : (ctx: CanvasRenderingContext2D, fractionLoaded: number)=>void
+    ) {
+        if (initComplete) {
+            console.error('Bunas Error: Engine already initalised. Assets can only be preloaded when called before Engine.init()');
+            return;
+        }
+        if (!loadingDrawFunc) {
+            loadingDrawFunc = function(ctx, fractionLoaded) {
+                ctx.strokeStyle = '#fff';
+                ctx.fillStyle = '#fff';
+                ctx.lineWidth = 10;
+                ctx.beginPath();
+                    ctx.arc(
+                        625, 295, 140,
+                        (-Math.PI / 2),
+                        (-Math.PI / 2) + ((Math.PI * 2) * (1 - fractionLoaded)),
+                        false
+                    );
+                ctx.stroke();
+            }
+        }
+        delayLoad = internalLoad.bind(null, assets, loadingDrawFunc);
+    }
+
+    function internalLoad(
+        assetRoutes       : AssetRouteList,
+        loadingDrawFunc?  : (ctx: CanvasRenderingContext2D, fractionLoaded: number)=>void
+    ): void {
+        spriteLoader = assetRoutes.sprites || {};
+        soundLoader  = assetRoutes.sounds || {};
+        bgLoader     = assetRoutes.bgs || {};
+
+        assetTotal = Object.keys(spriteLoader).length +
+                     Object.keys(soundLoader).length +
+                     Object.keys(bgLoader).length;
+        assetLoader();
+        
+        advanceLoading(loadingDrawFunc);
+    };
+
+    function advanceLoading(loadScreen: (ctx: CanvasRenderingContext2D, completion: number)=>void): void {
+        if (loading > 0) {
+            ctx.clearRect(0, 0, cW, cH);
+            loadScreen(ctx, loading / assetTotal);
+            window.requestAnimationFrame(advanceLoading.bind(null, loadScreen));
+        } else {
+            assets = {
+                sprites : spriteLoader,
+                sounds  : soundLoader,
+                bgs     : bgLoader
+            };
+            initLoop();
+        }
+    };   
+
+    function assetLoader(): void {
+        for (let element in spriteLoader) {
+            loading += 1;
+            let spr = new Image();
+            spr.src = spriteLoader[element];
+            spriteLoader[element] = spr;
+
+            spr.onload = () => loading -= 1;
+        }
+
+        for (let element in bgLoader) {
+            loading += 1;
+            let bg = new Image();
+            bg.src = bgLoader[element];
+            bgLoader[element] = bg;
+
+            bg.onload = () => loading -= 1;
+        }
+
+        for (let element in soundLoader) {
+            loading += 1;
+            let sound = new Audio();
+            sound.src = soundLoader[element];
+            soundLoader[element] = sound;
+            sound.volume = 0.1;
+
+            sound.load();
+            sound.oncanplaythrough = () => loading -= 1;
+        }
+    };
+
+    //
+    // Lifecycle Loop
+    //
+    function initLoop(): void {
+        _externalCallback();
+        loop();
+    };
+
+    function loop(): void {
+        setTimeout(() => {
+            let newT: number = +new Date();
+            dT = (newT - currentT) / frameDur;
+            currentT = newT;
+            
+            Input.step();
+            preStep();
+            World.step(dT);
+            postStep();
+
+            ctx.clearRect(-1, -1, cW + 1, cH + 1);
+            preDraw();
+            World.draw(ctx, dT);
+            Debug.draw(ctx);
+            Input.drawCursor(ctx, dT);
+            postDraw();
+
+            window.requestAnimationFrame(loop.bind(this));
+        }, frameDur - (+new Date()) + currentT);
+    };
+}
+import { Engine } from './Engine';
+import { GameObject } from './Common';
+import { Physics } from './Physics';
+
+/** Provides functions and classes for rendering bitmap and vector graphics on the canvas */
+export module Graphics {
+    //
+    // Types / Interfaces
+    //
+    /** */
+    export type keyframe     = number | number[] | number[][] | (number | string)[][];
+    /** */
+    export type keyframeSet  = { [property: string] : keyframe };
+    /** */
+    export type drawFunction = (frame: { [property: string] : number }, ctx: CanvasRenderingContext2D)=>void;
+    export type spriteState  = {
+        duration   : number,
+        elements   : { [element: string] : keyframeSet },
+        fr?        : number,
+        iteration? : number,
+        easeIn?    : string,
+        easeOut?   : string,
+        onEnd?     : ()=>void
+    };
+
+    /** Base interface implemented by all sprites, both vector and bitmap */
+    export interface ISprite {
+        setDuration: (frames: number, perFrame?: boolean)=>void;
+        draw: (ctx: CanvasRenderingContext2D, x: number, y: number, ang: number)=>void;
+        toggle: (play: boolean, setFrame: number)=>void;
+        reverse: ()=>void;
+        onEnd: ()=>void;
+    };
+
+    export let
+        /** List of preloaded sprite assets */
+        sprites: { [name: string] : HTMLImageElement },
+        /** List of preloaded background assets */
+        bgs: { [name: string] : HTMLImageElement };
+
+    export function setAssets(
+        spriteAssets: { [name: string] : HTMLImageElement },
+        bgAssets:{ [name: string] : HTMLImageElement }
+    ) {
+        sprites = spriteAssets;
+        bgs = bgAssets;
+    }
+
+
+    //
+    // Class: Bitmap Sprite
+    //
+    /** Class for a bitmap sprite */
+    export class Sprite implements ISprite {
+        private sprite    : HTMLImageElement;
+        private frCurrent : number = 0;
+        private frDur     : number;
+        private paused    : boolean = false;
+        private reversed  : boolean = false;
+        /** */
+        public width      : number;
+        /** */
+        public height     : number;
+        /** Animation lifecycle hook to run after animation completes a loop */
+        public onEnd      : ()=>void = ()=>{};
+
+        /**
+            Sprite can be provided as an Image element or the name of a preloaded asset.
+            Animated sprites must take the form of an unpadded horizontal sprite sheet.
+            frTotal is the number of frames in the sprite sheet.
+            duration is the number of game frame animation will last; may be a fraction.
+        */
+        constructor(
+            sprite  : string | HTMLImageElement,
+            private frTotal: number = 1,
+            duration: number = 0
+        ) {
+            this.sprite = typeof sprite === 'string' ? sprites[sprite] : sprite;
+            this.width  = this.sprite.width / frTotal;
+            this.height = this.sprite.height;
+            this.frDur = duration / frTotal;
+        };
+        
+        /** Draw the sprite to the canvas at the point { canX, canY }.
+            Ang may be provided to rotate the sprite by the given angle.
+        */
+        public draw(ctx: CanvasRenderingContext2D, canX: number, canY: number, ang: number = 0): void {
+            ctx.save();
+                ctx.translate(canX, canY);
+                ctx.rotate(ang);
+                let currentFrame = Math.floor(this.frCurrent) * this.width;
+                if (this.reversed) {
+                    currentFrame = this.frTotal - currentFrame;
+                }
+                ctx.drawImage(
+                    this.sprite,
+                    currentFrame,   0,
+                    this.width,     this.height,
+                    0,              0,
+                    this.width,     this.height
+                );
+                if (this.frDur > 0 && !this.paused) {
+                    this.frCurrent += this.frDur;
+                    if (this.frCurrent >= this.frTotal) {
+                        this.frCurrent = 0;
+                    }
+                }
+            ctx.restore();
+        };
+
+        /** Sets number of game frames animation will last for
+            If perFrame, sets number of game frames a single frame of sprite sheet will last for
+        */
+        public setDuration(frames: number, perFrame: boolean = false) {
+            this.frDur = perFrame ? frames : frames / this.frTotal;
+        }
+
+        /** Play/pause animation.
+            Will toggle to opposite of current state if play is not provided.
+        */
+        public toggle(play?: boolean) {
+            if (typeof play === 'undefined') {
+                this.paused = !this.paused;
+            } else {
+                this.paused = !play;
+            } 
+
+        };
+
+        /** Reverse direction of animation.
+            Will toggle to opposite of current direction if runBackwards is not provided.
+        */
+        public reverse(runBackwards?:boolean) {
+            if (typeof runBackwards === 'undefined') {
+                this.reversed = !this.reversed;
+            } else {
+                this.reversed = runBackwards;
+            }
+        };
+    };
+
+    //
+    // Class: Vector Sprite
+    //
+    /** Class for vector graphic sprites */
+    export class VectorSprite implements ISprite {
+        private fr        : number = 0;
+        private paused : boolean = false;
+        /** Animation lifecycle hook to run after animation completes a loop */
+        public onEnd     : () => void = () => {};
+
+        /** Sprite is provided as a draw function with a series of canvas draw commands
+            keyFrameSet contains a list of keyframes whose variables will be interpolated based on the current frame before being provided to the draw function
+            duration is the number of game frame animation will last; may be a fraction.
+        */
+        constructor(
+            public drawFunction: drawFunction,
+            public keyframeSet: keyframeSet = null,
+            public duration: number = 30
+        ) {
+        };
+
+        /** Draw the sprite to the canvas at the point { canX, canY }.
+            Ang may be provided to rotate the sprite by the given angle.
+        */
+        public draw(ctx: CanvasRenderingContext2D, x: number, y: number, ang: number = 0) {
+            ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(ang);
+                this.drawFunction(this.keyframeSet ? tween(this.keyframeSet, this.fr) : null, ctx);
+            ctx.restore();
+
+            if (this.paused) {
+                return;
+            }
+
+            this.fr += (1 / this.duration) * Engine.getDelta();
+            
+            if (this.fr > 1 || this.fr < 0) {
+                this.fr = (this.fr + 1) % 1;
+                this.onEnd();
+            }
+        };
+
+        /** Sets number of game frames to display animation for */
+        public setDuration(frames: number) {
+            this.duration = this.duration < 0 ? frames * -1 : frames;
+        }
+
+        /** Play/pause animation.
+            Will toggle to opposite of current state if play is not provided.
+        */
+        public toggle(play?: boolean ) {
+            if (typeof play === 'undefined') {
+                this.paused = !this.paused;
+            } else {
+                this.paused = !play;
+            }
+        };
+
+        /** Reverse direction of animation.
+            Will toggle to opposite of current direction if runBackwards is not provided.
+        */
+        public reverse(runBackwards?:boolean) {
+            if (
+                (typeof runBackwards === 'undefined') ||
+                (this.duration < 0 && !runBackwards) ||
+                (this.duration > 0 && runBackwards)
+            ) {
+                this.duration *= -1;
+            }
+        };
+    };
+
+    //
+    // Class: Dynamic Vector Sprite
+    //
+    export class DynamicVectorSprite implements ISprite {
+        public fr        : number = 0;
+        public duration  : number;
+        public onEnd     : ()=>void = ()=>{};
+        public currentState  : string;
+        public currentAction : string;
+        private state    : spriteState;
+        private action   : spriteState = null;
+        private isPaused : boolean = false;
+
+        constructor(
+            public elements : { [element: string] : drawFunction },
+            public states   : { [state: string]   : spriteState  },
+            public actions  : { [action: string]  : spriteState  }
+        ) {
+            for (let s in states) {
+                states[s].onEnd = states[s].onEnd || (() => {});
+            }
+            for (let a in actions) {
+                actions[a].fr = 0;
+                actions[a].onEnd = actions[a].onEnd || (() => {});
+            }
+            this.currentState = Object.keys(states)[0];
+            this.state = states[this.currentState];
+            this.duration = this.state.duration;
+        };
+
+        public draw(ctx: CanvasRenderingContext2D, x: number, y: number, ang: number = 0) {
+            ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(ang);
+                for (let el in this.elements) {
+                    let props;
+                    if (this.action && this.action.elements[el]) {
+                        props = tween(this.action.elements[el], this.action.fr);
+                    }
+                    if (this.state.elements[el]) {   
+                        let stateProps = tween(this.state.elements[el], this.fr);
+                        if (!props) {
+                            props = stateProps;
+                        } else {
+                            for (let p in stateProps) {
+                                if (!props[p]) {
+                                    props[p] = stateProps[p];
+                                }
+                            }
+                        }
+                    }
+                    if (props) {
+                        this.elements[el](props, ctx); 
+                    }
+                }
+            ctx.restore();
+
+            if (!this.isPaused) {
+                if (this.duration) {
+                    this.fr += (1 / this.duration) * Engine.getDelta();
+                    if (this.fr > 1 || this.fr < 0) {
+                        this.fr = (this.fr + 1) % 1;
+                        this.state.onEnd();
+                        this.onEnd();
+                    }
+                }
+                if (this.action) {
+                    this.action.fr += (1 / this.action.duration) * Engine.getDelta();
+                    if (this.action.fr > 1 || this.action.fr < 0) {
+                        if (this.action.iteration > 1) {
+                            this.action.iteration--;
+                        } else {
+                            if (this.action.iteration === -1) {
+                                this.action.onEnd();
+                            } else {
+                                this.action.onEnd();
+                                this.action = null;
+                                this.currentAction = null;
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        /** Sets number of game frames to display sprite animation for */
+        public setDuration(frames: number) {
+            this.duration = frames;
+        }
+
+        public changeState(state: string, setFrame: number = -1, transition: number = 5, ease: string = 'sine'): void {
+            if (this.currentState === state && setFrame === -1) {
+                return;
+            }
+            this.currentState = state;
+
+            if (transition) {
+                let nextState = this.states[state],
+                    endFrame;
+                if (nextState.duration) {
+                    endFrame = setFrame === -1 ? (1 + this.fr + (transition / nextState.duration)) % 1 : setFrame;
+                } else {
+                    endFrame = 0;
+                }
+                let transState = {
+                    duration : transition,
+                    onEnd    : this.setState.bind(this, state, endFrame),
+                    elements : {}
+                };
+                for (let el in nextState.elements) {
+                    transState.elements[el] = {};
+                    let startValues = this.state.elements[el] ? tween(this.state.elements[el], this.fr) : false,
+                        endValues   = tween(nextState.elements[el], endFrame);
+                    for (let param in nextState.elements[el]) {
+                        if (!startValues || startValues[param] === undefined) {
+                            transState.elements[el][param] = endValues[param];
+                        } else {
+                            transState.elements[el][param] = [[0, startValues[param], ease], [1, endValues[param], ease]];
+                        }
+                    }
+                }
+                this.state = transState;
+                this.duration = transition;
+                this.fr = 0;
+            } else {
+                this.setState(state, setFrame);
+            }
+        };
+
+        private setState(state: string, setFrame = -1) {
+            this.state = this.states[state];
+            if (setFrame !== -1) {
+                this.fr = setFrame;
+            }
+            this.duration = this.state.duration;
+        };
+
+        public trigger(action: string, iterations: number = 1, transition: number = 10, ease: string = 'sine'): void {
+            if (this.currentAction === action) {
+                return;
+            }
+            this.currentAction = action;
+
+            if (transition) {
+                let nextAction = this.actions[action];
+                this.action = {
+                    fr        : 0,
+                    iteration : -1,
+                    duration  : transition,
+                    onEnd     : this.setAction.bind(this, action, iterations),
+                    elements  : {}
+                };
+                for (let el in nextAction.elements) {
+                    this.action.elements[el] = {};
+                    let startValues = this.state.elements[el] ? tween(this.state.elements[el], this.fr) : false,
+                        endValues   = tween(nextAction.elements[el], 0);
+                    for (let param in nextAction.elements[el]) {
+                        if (!startValues || startValues[param] === undefined) {
+                            this.action.elements[el][param] = endValues[param];
+                        } else {
+                            this.action.elements[el][param] = [[0, startValues[param], ease], [1, endValues[param], ease]];
+                        }
+                    }
+                }
+            } else {
+                this.setAction(action, iterations)
+            }
+        };
+
+        private setAction(action, iterations) {
+            this.action = this.actions[action];
+            this.action.iteration = iterations;
+            this.action.fr = 0;
+        };
+
+        public toggle(play: boolean = null, setFrame?: number, setActionFrame?: number) {
+            this.isPaused = play === null ? !this.isPaused : !play;
+            if (setFrame || setFrame === 0) {
+                this.state.fr = setFrame;
+            }
+            if ((setActionFrame || setActionFrame === 0) && this.action) {
+                this.action.fr = setActionFrame;
+            }
+        };
+
+        public reverse() {
+            this.duration *= -1;
+        };
+    };
+
+    /** Class to create a particle emitter */
+    export class Emitter extends GameObject {
+        private parts       : Particle[] = [];
+        private currentRate : number = 0;
+        private _grav       : Physics.Vec;
+        private _size       : number[] = [2, 2];
+        private _color      : string = 'dodgerblue';
+        private _lifespan   : number[] = [100, 100];
+        private _ang        : number[] = [0, 0];
+        private _power      : number[] = [1, 1];
+        private _rate       : number[] = [10, 10];
+
+        constructor(
+			public x      : number,
+			public y      : number,
+		    ang?   : number | number[],
+		    power? : number | number[],
+		    rate?  : number | number[],
+		) {
+            super(x, y);
+            if (ang) {
+                this._ang = this.configRange(ang);
+            }
+            if (power) {
+                this._power = this.configRange(power);
+            }
+            if (rate) {
+                this._rate = this.configRange(rate);
+            }
+        };
+
+        set gravity(g : Physics.Vec | number) {
+            if (typeof g === 'number') {
+                this._grav = new Physics.Vec(g, Math.PI / 2, true);                    
+            } else {
+                this._grav = g as Physics.Vec;
+            }
+        }
+
+        set angle(a: number | number[]) {
+            this._ang = this.configRange(a);
+        }
+        set power(a: number | number[]) {
+            this._power = this.configRange(a);
+        }
+        set rate(a: number | number[]) {
+            this._rate = this.configRange(a);
+        }
+
+        private configRange(p): number[] {
+            if (typeof p === 'object') {
+                return [p[0], p[1] - p[0]];
+            } else {
+                return [p, 0];
+            }
+        }
+        
+        public setParticle(
+            size: number | number[],
+			color?: string,
+            lifespan?: number | number[]
+        ) {
+            this._size = this.configRange(size);
+            if (color) {
+                this._color = color;
+            }
+            if (lifespan) {
+                this._lifespan = this.configRange(lifespan);
+            }
+        }
+
+		public step(dt) {
+            this.currentRate += dt;
+            if (this.currentRate > this._rate[0]) {
+                for(let i = this._rate[0]; i < this.currentRate; i += this._rate[0]) {
+                    let s = this._size[0]     + (Math.random() * this._size[1]),
+                        c = this._color,
+                        l = this._lifespan[0] + (Math.random() * this._lifespan[1]),
+                        a = this._ang[0]      + (Math.random() * this._ang[1]),
+                        p = this._power[0]    + (Math.random() * this._power[1]);
+                    this.parts.push(new Particle(this.x, this.y, s, c, l, new Physics.Vec(p, a, true), (this.currentRate - i) / this._rate[0]));
+                }   
+                this.currentRate %= this._rate[0];
+                this.currentRate += Math.random() * this._rate[1];
+            }
+			this.parts.forEach((p, i) => {
+				p.lifespan -= dt;
+				if (p.lifespan < 0) {
+                    p.die(this.parts, i);
+				}
+				p.step(this._grav);
+            });
+		}
+
+		public draw(ctx, dt) {
+			ctx.beginPath();
+            this.parts.forEach(p => {
+                p.draw(ctx);
+            });
+            ctx.fill();
+		}
+	}
+
+	class Particle {
+        private opacity: number = 1;
+        public draw: (ctx: CanvasRenderingContext2D)=>void;
+
+		constructor (
+            private x           : number,
+            private y           : number,
+			private size        : number = 2,
+			private color       : string = 'black',
+			public  lifespan    : number = 1000,
+            private velocity    : Physics.Vec,
+                    offset      : number = 1
+		) {
+			if (!velocity) {
+				this.velocity = new Physics.Vec(0, 0);
+            }
+            this.x += this.velocity.scale(offset).x - (this.size / 2);
+            this.y += this.velocity.scale(offset).y - (this.size / 2);
+
+            if (this.size <= 2) {
+                this.draw = (ctx) => {
+                    ctx.moveTo(this.x, this.y);
+                    ctx.rect(this.x, this.y, this.size, this.size);
+                    if (this.opacity < 1) {
+                        ctx.globalAlpha = this.opacity;
+                    }
+                    if (ctx.strokeStyle !== this.color) {
+                        ctx.strokeStyle = this.color;
+                        ctx.stroke();
+                        ctx.beginPath();
+                    }
+                    ctx.globalAlpha = 1;
+                }
+            } else {
+                this.draw = (ctx) => {
+                    ctx.moveTo(this.x, this.y);
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    if (this.opacity < 1) {
+                        ctx.globalAlpha = this.opacity;
+                    }
+                    if (ctx.fillStyle !== this.color) {
+                        ctx.fillStyle = this.color;
+                        ctx.fill();
+                        ctx.beginPath();
+                    }
+                    ctx.globalAlpha = 1;
+                }
+            }
+		};
+
+		public step(gravity?: Physics.Vec) {
+            if (gravity) {
+                this.velocity = this.velocity.add(gravity);
+            }
+			this.x += this.velocity.x;
+            this.y += this.velocity.y;
+        }
+        
+        public die(parts, i) {
+            this.opacity -= 0.2;
+            if (this.opacity <= 0)
+            parts.splice(i, 1);
+        }
+	}
+
+    //
+    // Private Methods
+    //
+    function tween(keyframeSet : keyframeSet, currentFrame : number): {[param : string] : number} {
+        let params = {};
+        for (let key in keyframeSet) {
+            if (typeof keyframeSet[key] === 'number') {
+                params[key] = keyframeSet[key];
+            } else {
+                params[key] = interpolate(keyframeSet[key], currentFrame);
+            }
+        }
+        return params;
+    };   
+
+    function interpolate(keyframe: keyframe, currentFrame: number): number {
+        let nextKeyframe = 0;
+        //TODO: optimise for number[] case
+        keyframe = keyframe as number[] | number[][] | (number|string)[][];
+        if (typeof keyframe[0] === 'number') {
+            keyframe = (keyframe as number[]).map((k, i) => [i / (keyframe as number[]).length, k]);
+        }
+
+        for(let k = 0; k < keyframe.length; k++) {
+            if (currentFrame < keyframe[k][0]) {
+                nextKeyframe = k;
+                break; 
+            }
+        }
+
+        let end   = keyframe[nextKeyframe],
+            start = keyframe[nextKeyframe === 0 ? keyframe.length - 1 : nextKeyframe - 1];
+        if (end[0] === 1) {
+            end[0] = 0.9999;
+        }
+
+        let frameDiff = (1 + end[0] - start[0]) % 1;
+        return Easings[start[2] || 'sine'](currentFrame - start[0], start[1], end[1] - start[1], frameDiff);
+    };
+
+    //
+    // Easing Functions
+    //
+    const Easings = {
+        linear:     (t, b, c, d) => b + (c * (t / d)),
+        sine:       (t, b, c, d) => -c/2 * (Math.cos(Math.PI*t/d) - 1) + b,
+        cubic:      (t, b, c, d) => (t/=d/2) < 1 ? c/2*t*t*t + b : c/2*((t-=2)*t*t + 2) + b,
+        quad:       (t, b, c, d) => (t/=d/2) < 1 ? c/2*t*t + b : -c/2 * ((--t)*(t-2) - 1) + b,
+        quart:      (t, b, c, d) => (t/=d/2) < 1 ? c/2*t*t*t*t + b : -c/2 * ((t-=2)*t*t*t - 2) + b,
+        quint:      (t, b, c, d) => (t/=d/2) < 1 ? c/2*t*t*t*t*t + b : c/2*((t-=2)*t*t*t*t + 2) + b,
+        expo:       (t, b, c, d) => {
+                        if (t==0) return b;
+                        if (t==d) return b+c;
+                        if ((t/=d/2) < 1) return c/2 * Math.pow(2, 10 * (t - 1)) + b;
+                        return c/2 * (-Math.pow(2, -10 * --t) + 2) + b;
+                    },
+        back:       (t, b, c, d) =>  (t/=d/2) < 1 ? c/2*(t*t*((3.6)*t - 2.6)) + b : c/2*((t-=2)*t*(3.6*t + 2.6) + 2) + b,
+        bounce:     (t, b, c, d) => t < d/2 ? Easings.bounceIn(t*2, 0, c, d) * .5 + b : Easings.bounceOut(t*2-d, 0, c, d) * .5 + c*.5 + b,
+        elastic:    (t, b, c, d) => {
+                        var s=1.70158;var p=0;var a=c;
+                        if (t==0) return b;  if ((t/=d/2)==2) return b+c;  if (!p) p=d*(.3*1.5);
+                        if (a < Math.abs(c)) { a=c; var s=p/4; }
+                        else var s = p/(2*Math.PI) * Math.asin (c/a);
+                        if (t < 1) return -.5*(a*Math.pow(2,10*(t-=1)) * Math.sin( (t*d-s)*(2*Math.PI)/p )) + b;
+                        return a*Math.pow(2,-10*(t-=1)) * Math.sin( (t*d-s)*(2*Math.PI)/p )*.5 + c + b;
+                    },
+        circular:   (t, b, c, d) => (t/=d/2) < 1 ? -c/2 * (Math.sqrt(1 - t*t) - 1) + b : c/2 * (Math.sqrt(1 - (t-=2)*t) + 1) + b,
+        sineIn:     (t, b, c, d) => -c * Math.cos(t/d * (Math.PI/2)) + c + b,
+        cubicIn:    (t, b, c, d) => c*(t/=d)*t*t + b,
+        quadIn:     (t, b, c, d) => c*(t/=d)*t + b,
+        quartIn:    (t, b, c, d) => c*(t/=d)*t*t*t + b,
+        expoIn:     (t, b, c, d) => (t==0) ? b : c * Math.pow(2, 10 * (t/d - 1)) + b,
+        circularIn: (t, b, c, d) => -c * (Math.sqrt(1 - (t/=d)*t) - 1) + b,
+        backIn:     (t, b, c, d) => c*(t/=d)*t*(2.7*t - 1.7) + b,
+        bounceIn:   (t, b, c, d) => c - Easings.bounceOut(d-t, 0, c, d) + b,
+        elasticIn:  (t, b, c, d) => {
+                        var s=1.70158;var p=0;var a=c;
+                        if (t==0) return b;  if ((t/=d)==1) return b+c;  if (!p) p=d*.3;
+                        if (a < Math.abs(c)) { a=c; var s=p/4; }
+                        else var s = p/(2*Math.PI) * Math.asin (c/a);
+                        return -(a*Math.pow(2,10*(t-=1)) * Math.sin( (t*d-s)*(2*Math.PI)/p )) + b;
+                    },
+        sineOut:    (t, b, c, d) => c * Math.sin(t/d * (Math.PI/2)) + b,
+        cubicOut:   (t, b, c, d) => c*((t=t/d-1)*t*t + 1) + b,
+        quadOut:    (t, b, c, d) => -c *(t/=d)*(t-2) + b,
+        quartOut:   (t, b, c, d) => -c * ((t=t/d-1)*t*t*t - 1) + b,
+        expoOut:    (t, b, c, d) => (t==d) ? b+c : c * (-Math.pow(2, -10 * t/d) + 1) + b,
+        circularOut:(t, b, c, d) => c * Math.sqrt(1 - (t=t/d-1)*t) + b,
+        backOut:    (t, b, c, d) => c*((t=t/d-1)*t*(2.7*t + 1.7) + 1) + b,
+        bounceOut:  (t, b, c, d) => {
+                        if ((t/=d) < (1/2.75)) {
+                            return c*(7.5625*t*t) + b;
+                        } else if (t < (2/2.75)) {
+                            return c*(7.5625*(t-=(1.5/2.75))*t + .75) + b;
+                        } else if (t < (2.5/2.75)) {
+                            return c*(7.5625*(t-=(2.25/2.75))*t + .9375) + b;
+                        } else {
+                            return c*(7.5625*(t-=(2.625/2.75))*t + .984375) + b;
+                        }
+                    },
+        elasticOut:(t, b, c, d) => {
+                        var s=1.70158;var p=0;var a=c;
+                        if (t==0) return b;  if ((t/=d)==1) return b+c;  if (!p) p=d*.3;
+                        if (a < Math.abs(c)) { a=c; var s=p/4; }
+                        else var s = p/(2*Math.PI) * Math.asin (c/a);
+                        return a*Math.pow(2,-10*t) * Math.sin( (t*d-s)*(2*Math.PI)/p ) + c + b;
+                    }
+    };
+}
+import { Engine } from './Engine';
+import { GameObject } from './Common';
+import { Graphics } from './Graphics';
+
+/** This module provides an interface for user inputs */
+export module Input {
+    //
+    // Types / Interfaces
+    //
+    /** Private: to store cursor position */
+    type Point = {
+        x : number;
+        y : number;
+    };
+
+    type ClickableObject = {
+        obj: GameObject;
+        x0: number;
+        x1: number;
+        y0: number;
+        y1: number;
+        circ: boolean;
+    };
+
+    /** Private: Describes state of keyboard input */
+    interface KeyBoard {
+        down    : string;
+        up      : string;
+        pressed : string[];
+    };
+
+    /** Private: Describes single mouse button state */
+    interface MouseButton {
+        down       : boolean;
+        up         : boolean;
+        doubleUp   : boolean;
+        pressed    : boolean;
+        drag       : boolean;
+        startDrag  : boolean;
+        endDrag    : boolean;
+        dragging   : boolean;
+        dragPts    : Point[];
+    };
+
+    /** Describes current state of mouse input */
+    export interface Mouse extends Point {
+        left  : MouseButton;
+        right : MouseButton;
+    };
+
+    //
+    // Private Variables
+    //
+    const clickCode: string[] = ['left', 'middle', 'right'];
+    let dragCheck = {
+            tolerance : 40,
+            originX   : 0,
+            originY   : 0,
+            dragPts   : []
+        },
+        dblClickWait : number = 500,
+        customCursor : (ctx: CanvasRenderingContext2D, delta: number) => void,
+        clickableObjects: ClickableObject[] = [];
+
+    //
+    // Public Variables
+    //
+    export let
+        /** Current state of mouse input */
+        mouse: Mouse = {
+            x:    0,
+            y:    0,
+            left: {
+                down       : false,
+                up         : false,
+                doubleUp   : false,
+                pressed    : false,
+                drag       : false,
+                startDrag  : false,
+                endDrag    : false,
+                dragging   : false,
+                dragPts    : []
+            },
+            right: {
+                down       : false,
+                up         : false,
+                doubleUp   : false,
+                pressed    : false,
+                drag       : false,
+                startDrag  : false,
+                endDrag    : false,
+                dragging   : false,
+                dragPts    : []
+            }
+        },
+
+        /**
+            Current state of keyboard input
+            Pressed stores names of all keys currently pressed
+        */
+        key: KeyBoard = {
+            up      : null,
+            down    : null,
+            pressed : []
+        };
+
+    //
+    // Setters / Getters
+    //
+    /** Sets number of pixels cursor must move while pressed before drag event is triggered */
+    export function setDragTolerance(tolerance: number): void {
+        dragCheck.tolerance = tolerance;
+    };
+    /** Sets maximum milliseconds between clicks in a double click in order for event to be trigged */
+    export function setdoubleClickWait(v: number): void {
+        dblClickWait = v;
+    };
+
+    //
+    // Public Methods
+    //
+    export function init(): void {
+        window.addEventListener('mousemove', onMouseMove.bind(this));
+        window.addEventListener('mousedown', onMouseDown.bind(this));
+        window.addEventListener('mouseup'  , onMouseUp.bind(this));
+
+        window.onkeydown = onKeyDown.bind(this);
+        window.onkeyup   = onKeyUp.bind(this);
+
+        toggleContextMenu(false);
+    };
+
+    export function step(): void {
+        emitClickableObjectEvents();
+
+        resetMouseButton(mouse.left);
+        resetMouseButton(mouse.right);
+
+        key.down = null;
+        key.up   = null;
+    };
+
+    /**
+        Enable/Disable browser context menu on right click
+        Disabled by default
+     */
+    export function toggleContextMenu(show: boolean = true): void {
+        if (show) {
+            window.oncontextmenu = function (e) { };
+        } else {
+            window.oncontextmenu = function (e) {
+                e.preventDefault();
+            };
+        }
+    };
+
+    /** Returns true is any of the key names provided are currently pressed  */
+    export function checkKey(...keys: string[]): boolean | object {
+        return keys.some(k => key.pressed.indexOf(k) !== -1);
+    };
+
+    /**
+        Sets cursor type if CSS cursor name is provided
+        Sets a custom cursor to be rendered if draw function is provided
+    */
+    export function setCursor(cursor: (ctx: CanvasRenderingContext2D, delta: number)=>void | string): void {
+        if (typeof cursor === 'string') {
+            (Engine.getCanvasEl() as HTMLElement).style.cursor = cursor;
+        } else {
+            (Engine.getCanvasEl() as HTMLElement).style.cursor = 'none';
+            customCursor = cursor;
+        }
+    };
+
+    export function drawCursor(ctx: CanvasRenderingContext2D, delta: number): void {
+        if (customCursor) {
+            ctx.save();
+                ctx.translate(mouse.x, mouse.y);
+                customCursor(ctx, delta);
+            ctx.restore();
+        }
+    };
+
+    /**
+        Registers game object with relative hit box in which to listener for mouseover events
+        If circular, hit box will be a circle
+        If centered, box will be centered on object.x, object.y; otherwise, will be aligned with top left
+    */
+    export function setMouseListener(g: GameObject, width: number, height: number, circular: boolean = false, centered: boolean = false) {
+        let x0, y0, x1, y1 = 0;
+        if (circular) {
+            x1 = y1 = width / 2;
+            if (!centered) {
+                x0 = y0 = width / 2;
+            }
+        } else if (centered) {
+            x0 = -width / 2;
+            x1 = width / 2;
+            y0 = -height / 2;
+            y1 = height /2;
+        } else {
+            x1 = width;
+            y1 = height;
+        }
+        clickableObjects.push({
+            obj: g,
+            x0: x0,
+            x1: x1,
+            y0: y0,
+            y1: y1,
+            circ: circular
+        });
+    };
+
+    /** Calls setMouseListener with width and height of provided sprite */
+    export function setMouseListenerFromSprite(g: GameObject, sprite: Graphics.Sprite, centered: boolean = false) {
+        setMouseListener(g, sprite.width, sprite.height, false, centered);
+    };
+
+    //
+    // Private Methods
+    //
+    function onMouseDown(e: MouseEvent): void {
+        dragCheck.originX = e.clientX;
+        dragCheck.originY = e.clientY;
+        mouse[clickCode[e.button]].pressed = true;
+        mouse[clickCode[e.button]].down    = true;
+    };
+
+    function onMouseUp(e: MouseEvent): void {
+        let b = mouse[clickCode[e.button]];
+
+        b.pressed = false;
+        b.up      = true;
+
+        if (b.dragging) {
+            b.endDrag  = true;
+            b.dragging = false;
+        }
+
+        if (b.dblCheck) {
+            b.doubleUp = true; 
+            b.dblCheck = false;
+        } else {
+            b.dblCheck = true;
+            setTimeout(() => b.dblCheck = false, dblClickWait);
+        }
+    };
+
+    function onMouseMove(e: MouseEvent): void {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+
+        checkDrag(mouse.left);
+        checkDrag(mouse.right);
+    };
+
+    function checkDrag(b: MouseButton): void {
+        if (b.pressed) {
+            if (!b.dragging) {
+                if (
+                    Math.sqrt(
+                        Math.pow(mouse.y - dragCheck.originY, 2) +
+                        Math.pow(mouse.x - dragCheck.originX, 2)
+                    ) > dragCheck.tolerance
+                ) {
+                    b.dragging = true;
+                    b.dragPts = [];
+                    dragCheck.dragPts.forEach(p => b.dragPts.push({ x: p.x, y: p.y }));
+                    dragCheck.dragPts = [];
+                } else {
+                    dragCheck.dragPts.push({
+                        x: mouse.x,
+                        y: mouse.y
+                    });
+                }
+            } else {
+                b.drag = true;
+                b.dragPts.push({
+                    x: mouse.x,
+                    y: mouse.y
+                });
+            }
+        }
+    };
+
+    function resetMouseButton(b: MouseButton): void {
+        b.down       = false;
+        b.up         = false;
+        b.doubleUp   = false;
+        b.drag       = false;
+        b.startDrag  = false;
+        b.endDrag    = false;
+    };
+
+    function onKeyDown(e: KeyboardEvent): void {
+        let keyName = e.code;
+        key.down = keyName;
+        if (key.pressed.indexOf(keyName) === -1) {
+            key.pressed.push(keyName);
+        }
+    };
+
+    function onKeyUp(e: KeyboardEvent): void {
+        let keyName = e.code;
+        key.up = keyName;
+        key.pressed.splice(key.pressed.indexOf(keyName), 1);
+    };
+
+    function emitClickableObjectEvents() {
+        clickableObjects.forEach(o => {
+            if (o.obj.onMouseOver) {
+                let clicked: boolean;
+                if (o.circ) {
+                    clicked =
+                        Math.sqrt(
+                            Math.pow(mouse.y - (o.obj.y + o.y0), 2) +
+                            Math.pow(mouse.x - (o.obj.x + o.x0), 2)
+                        ) < o.x1;
+                } else {
+                    clicked =
+                        o.obj.x - o.x0 < mouse.x &&
+                        o.obj.x + o.x1 > mouse.x &&
+                        o.obj.y - o.y0 > mouse.y &&
+                        o.obj.y + o.y1 > mouse.y;
+                }
+                if (clicked) {
+                    o.obj.onMouseOver.call(o.obj, mouse);
+                }
+            }
+        });
+    };
+}
+// import { Engine } from './Engine';
+
+// module Light {
+//     //Initiate main canvas element for drawing shadows and light
+// 	var can0 = document.createElement('canvas');
+// 	var ctx0 = can0.getContext('2d');
+
+// 	//Initiate working canvas one, for combining light from all sources
+// 	var can1 = document.createElement('canvas');
+// 	var ctx1 = can1.getContext('2d');
+
+// 	//Initiate working canvas two, for drawing light from a single source
+// 	var can2 = document.createElement('canvas');
+// 	var ctx2 = can2.getContext('2d');
+
+// 	can0.width = can1.width = can2.width = Engine.cW;
+// 	can0.height = can1.height = can2.height = Engine.cH;
+
+
+// 	//
+// 	// Public Varibales
+// 	//
+//     export let
+//         S  = [],    // Sources
+//         B  = [],    // Blocks
+//         Nc = [];    // No shadow cast areas
+
+
+// 	//
+//     // Private Methods
+//     //
+
+// 	//General Math Functions
+// 	function dist(x0, y0, x1, y1) {
+// 		return Math.sqrt(((x1 - x0) * (x1 - x0)) + ((y1 - y0) * (y1 - y0)));
+// 	}
+// 	function angDiff (a0, a1) {
+// 		var a = a0 - a1;
+// 		a += (a > Math.PI) ? -2 * Math.PI : (a < -Math.PI) ? 2 * Math.PI : 0;
+// 		return a;
+// 	}
+
+//     //
+//     // Public Classes
+//     //
+
+// 	//Light emitting object (x position, y position, brightness [radius of light reach], shade [colour of light in rgb(a)]
+// 	class Source {
+//         private shade: string;
+//         constructor(
+//             private x: number,
+//             private y: number, 
+//             private b: number
+//         ) {
+
+//         }
+
+// 		public drawLight(): void {
+// 			//corners of blocks which cast shadows
+// 			var c = [];
+
+// 			for (var i = 0; i < B.length; i++) {
+// 				if (B[i].active) {
+// 					if (B[i].shape === "rect") {
+// 						//Find shadow casting corners of rectangle
+// 						var side = 0;
+// 						if (this.x > B[i].x) {
+// 							side += 1;
+// 						}
+// 						if (this.x > B[i].x + B[i].w) {
+// 							side += 1;
+// 						}
+// 						if (this.y > B[i].y) {
+// 							side += 3;
+// 						}
+// 						if (this.y > B[i].y + B[i].h) {
+// 							side += 3;
+// 						}
+
+// 						if (side === 1 || side === 2 || side === 3 || side === 6) {
+// 							c.push({x : B[i].x, y : B[i].y});
+// 						}
+// 						if (side === 0 || side === 1 || side === 5 || side === 8) {
+// 							c.push({x : B[i].x + B[i].w, y : B[i].y});
+// 						}
+// 						if (side === 0 || side === 3 || side === 7 || side === 8) {
+// 							c.push({x : B[i].x, y : B[i].y + B[i].h});
+// 						}
+// 						if (side === 2 || side === 5 || side === 6 || side === 7) {
+// 							c.push({x : B[i].x + B[i].w, y : B[i].y + B[i].h});
+// 						}
+// 						//No shaodw if source is inside square
+// 						if (side === 4) {
+// 							c.push({x : B[i].x, y : B[i].y});
+// 							c.push({x : B[i].x, y : B[i].y});
+// 						}
+
+// 						//Add mid point for correct shadow rendering later
+// 						c.push({x : c[c.length - 1].x, y : c[c.length - 1].y});
+// 						c[c.length - 2] = {x : B[i].x + (B[i].w / 2), y : B[i].y + (B[i].h / 2)};
+// 					}
+// 					else {
+// 						//Convert sprite mask to Uint8ClampedArray [R0, G0, B0, A0, ... , Rn, Gn Bn An]
+// 						if (B[i].shape === "anim") {
+// 							ctx2.drawImage(B[i].mask, Math.floor(B[i].frNum) * B[i].w, 0, B[i].w, B[i].h, 0, 0, B[i].w, B[i].h);
+// 						} else {
+// 							ctx2.drawImage(B[i].mask, 0, 0);
+// 						}
+// 						var imgData = ctx2.getImageData(0, 0, B[i].w, B[i].h).data;
+
+// 						//Get angle between center of object and lihgt source for comparison later
+// 						var normal = Math.atan2(this.y - (B[i].y + (B[i].h / 2)), this.x - (B[i].x + (B[i].w / 2)));
+
+// 						//No shadow if light source is inside object
+// 						var pixel = (((Math.floor(this.y) - B[i].y) * B[i].w) + (Math.floor(this.x) - B[i].x)) * 4;
+// 						if (this.x - B[i].x < B[i].w && this.x - B[i].x > -1 && pixel > -1 && pixel < imgData.length && imgData[pixel + 3] > 120) {
+
+// 						} else {
+// 							//Scan all opaque pixels to find largest and smallest angle with source relative to the normal definded above
+// 							var max = -Infinity, min = Infinity, ang = 0, maxP = { x : 0, y : 0 }, minP = { x : 0, y : 0 };
+// 							for(var j = 3, x = 0, y = 0; j < imgData.length; j += 4, x += 1) {
+// 								//Reset x after each row scan
+// 								if (x === B[i].w) {
+// 									x = 0, y += 1;
+// 								}
+// 								//Only consider non-transparent pixels
+// 								if (imgData[j] > 120) {
+// 									ang = angDiff(normal, Math.atan2(this.y - (B[i].y + y), this.x - (B[i].x + x)));
+// 									if (ang > max) {
+// 										max = ang, maxP.x = x + B[i].x, maxP.y = y + B[i].y;
+// 									} else if (ang < min) {
+// 										min = ang, minP.x = x + B[i].x, minP.y = y + B[i].y;
+// 									}
+// 								}
+// 							}
+// 							c.push(minP);
+// 							c.push({x : B[i].x + (B[i].w / 2), y: B[i].y + (B[i].h / 2)});
+// 							c.push(maxP);
+// 							ctx2.clearRect(0, 0, B[i].w + 1, B[i].h + 1);
+// 						}
+// 					}
+// 					if (c.length > 0) {
+// 						//Calculate where shadow edges meet boundary of light
+// 						var ang = Math.atan2(c[c.length - 1].y - this.y, c[c.length - 1].x - this.x);
+// 						c.push({x : this.x + (this.b * 1.1 * Math.cos(ang)), y : this.y + (this.b * 1.1 * Math.sin(ang))});
+// 						ang = Math.atan2(c[c.length - 4].y - this.y, c[c.length - 4].x - this.x);
+// 						c.push({x : this.x + this.b * 1.1 * Math.cos(ang), y : this.y + this.b * 1.1 * Math.sin(ang)});
+// 					}
+// 				}
+// 			}
+
+// 			if (c.length > 0) {
+// 				//Calcualte the shape of light on working canvas
+// 				//Draw shadows
+// 				ctx2.fillStyle = 'rgba(0, 0, 0, 1)';
+// 				ctx2.beginPath();
+// 					for (var i = 0, ang0, ang1, diff; i < c.length; i += 5) {
+// 						ctx2.moveTo(c[i].x, c[i].y);
+// 						ctx2.lineTo(c[i + 1].x, c[i + 1].y);
+// 						ctx2.lineTo(c[i + 2].x, c[i + 2].y);
+// 						ctx2.lineTo(c[i + 3].x, c[i + 3].y);
+// 						ang0 = Math.atan2(c[i + 3].y - this.y, c[i + 3].x - this.x);
+// 						ang1 = Math.atan2(c[i + 4].y - this.y, c[i + 4].x - this.x);
+// 						ctx2.arc(this.x, this.y, this.b, ang0, ang1, (angDiff(ang0, ang1) > 0) ? true : false);
+// 						ctx2.lineTo(c[i].x, c[i].y);
+// 					}
+// 				ctx2.fill();
+
+// 				//Subtract block shapes from shadow
+// 				ctx2.globalCompositeOperation = 'destination-out';
+// 				for (var i = 0; i < B.length; i++) {
+// 					if (B[i].active) {
+// 						B[i].subBlock();
+// 					}
+// 				}
+// 				//Subtract no-cast regions from shadow
+// 				for (var i = 0; i < Nc.length; i++) {
+// 					Nc[i].subRegion();
+// 				}
+// 			}
+
+// 			//Draw Light emitting from source in circuler gradient, subtracting shadows
+// 			ctx2.globalCompositeOperation = 'source-out';
+// 			var grd = ctx2.createRadialGradient(this.x, this.y, 0, this.x , this.y, this.b);
+// 				grd.addColorStop(0, this.shade);
+// 				grd.addColorStop(1, 'rgba(0, 0, 0, 0)');
+// 			ctx2.fillStyle = grd;
+// 			ctx2.fillRect(this.x - this.b, this.y - this.b, this.b * 2, this.b * 2);
+
+// 			//Add light to light from other sources
+// 			ctx1.drawImage(can2, 0, 0);
+
+// 			//Reset working canvas
+// 			ctx2.globalCompositeOperation = "source-over";
+// 			ctx2.clearRect(0, 0, can2.width, can2.height);
+//         }
+//     }
+
+// 	//Light blocking object (xIn = x position, yIn = y position, shapeIn = object shape :"rect"/"anim"/"mask";
+// 	//						 if shapeIn = "rect" [p1 = width, p2 = height, p3 = opacity]
+// 	//						 if shapeIn = "anim" [p1 = mask, p2 = frame width, p3 = frame duration, p4 = opacity]
+// 	//						 else				 [p1 = opacity] )
+// 	class Block {
+//         private active: Boolean = true;
+//         private shape: string;
+//         private w: number;
+//         private h: number;
+//         private o: number;
+//         // private frNum: number;
+//         // private frDur: number;
+//         // private length: number;
+//         private mask: ImageBitmap;
+
+//         constructor(
+//             private x: number,
+//             private y: number,
+//             shape: string,
+//             p1: number | ImageBitmap,
+//             p2: number,
+//             p3?: number,
+//             p4?: number
+//         ) {
+//             if (shape === "rect") {
+//                 this.w = p1 as number;
+//                 this.h = p2;
+//                 this.o = p3;
+//             // } else if (shape === "anim") {
+//             //     this.frNum = 0;
+//             //     this.frDur = p3;
+//             //     this.length = 0;
+//             //     this.mask = p1 as ImageBitmap;
+//             //     this.w = p2;
+//             //     this.length = (p1 as ImageBitmap).width / this.w;
+//             //     this.frDur /= this.length;
+//             //     this.h = (p1 as ImageBitmap).height
+//             //     this.o = p4;
+//             } else {
+//                 this.o = p2;
+//                 this.mask = p1 as ImageBitmap;
+//                 this.w = (p1 as ImageBitmap).width;
+//                 this.h = (p1 as ImageBitmap).height;
+//             }
+//         }
+// 		//Subtract block shape from shadow
+// 		private subBlock(): void {
+// 			if (this.shape === "rect") {
+// 				ctx2.fillRect(this.x, this.y, this.w, this.h);
+// 			// } else if (this.shape === "anim") {
+// 			// 	ctx2.drawImage(this.mask, Math.floor(this.frNum) * this.w, 0, this.w, this.h, this.x, this.y, this.w, this.h);
+// 			// 	this.frNum += (dt * 17) / this.frDur;
+// 			// 	if (this.frNum > this.length)
+// 			// 		this.frNum = 0;
+// 			} else {
+// 				ctx2.drawImage(this.mask, this.x, this.y);
+// 			}
+//         }
+//     }
+
+// 	class NoCast {
+//         constructor(
+//             private x: number,
+//             private y: number,
+//             private shape: string | ImageBitmap,
+//             private w: number,
+//             private h: number
+//         ) {
+//             if (typeof shape !== 'string') {
+//                 this.w = shape.width;
+//                 this.h = shape.height;
+//             }
+//         }
+
+// 		private subRegion(): void {
+// 			if (this.shape === "rect") {
+// 				ctx2.fillRect(this.x, this.y, this.w, this.h);
+// 			} else if (this.shape === 'circ') {
+//                 ctx2.beginPath();
+//                     ctx2.arc(this.x, this.y, this.w, 0, Math.PI * 2);
+//                 ctx2.fill();
+//             } else {
+// 				ctx2.drawImage(this.shape as ImageBitmap, this.x, this.y);
+// 			}
+//         }
+//     }
+
+
+// 	//
+// 	//  Public Methods 
+// 	//
+
+// 	//Add light source to canvas (x position, y position, brightness [radius of light reach], shade [colour of light in rgb(a)]) -> source handle
+// 	export function addSource(x, y, b, s) {
+// 		b = typeof b !== 'undefined' ? b : 150;
+//         s = typeof s !== 'undefined' ? s : 'rgba(0, 0, 0, 1)';
+//         let source = new Source(x, y, b, s);
+// 		S.push(source);
+// 		return source;
+// 	}
+
+// 	//Add light blocker to canvas (x position, y position, object shape :"rect"/"anim"/"mask",
+// 	//						 	   rect width/mask opacity, rect height, rect opacity) -> block handle
+// 	export function addBlock(
+//         x: number,
+//         y: number, 
+//         shape: string, 
+//         p1: number | HTMLImageElement,
+//         p2: number,
+//         p3: number
+//     ) {
+// 		if (shape === "rect") {
+// 			var h, o;
+// 			if (typeof p3 === 'undefined') {
+// 				if (typeof p2 === 'undefined') {
+// 					h = p1, o = 1;
+// 				} else {
+// 					if (p2 < 1) {
+// 						h = p1, o = p2;
+// 					} else {
+// 						h = p2, o = 1;
+// 					}
+// 				}
+// 			} else {
+// 				h = p2, o = p3;
+// 			}
+// 			B.push(new Block(x, y, shape, p1, h, o));
+// 		// } else if (shape === "anim") {
+// 		// 	var o = typeof p4 !== 'undefined' ? p4 : 1;
+// 		// 	B.push(new Block(x, y, s, p1, p2, p3, o));
+// 	    } else {
+// 	    	var mask = new Image();
+// 	    	mask.src = p1 as HTMLImageElement;
+// 	    	var o = typeof p2 !== 'undefined' ? p2 : 1;
+// 	    	mask.onload = function() {
+// 				B.push(new Block(x, y, s, mask, o));
+// 			}
+// 		}
+
+// 		return B[B.length - 1];
+// 	}
+
+// 	//Add region to canvas on which no shadows can be cast(x position, y position, region shape :"rect"/mask,
+// 	//						 							   rect width, rect height) -> no-cast handle
+// 	export function addNoCast(x, y, s, d1, d2) {
+// 		x += Level.x;
+// 		y += Level.y;
+// 		if (s === "rect") {
+// 			if (typeof d2 === 'undefined') {
+// 				Nc.push(new NoCast(x, y, s, d1, d1));
+// 			} else {
+// 				Nc.push(new NoCast(x, y, s, d1, d2));
+// 			}
+// 		} else {
+// 			Nc.push(new NoCast(x, y, s));
+// 		}
+
+// 		return Nc[Nc.length - 1];
+// 	}
+
+// 	//Call draw function of all objects
+//     export function draw() {
+// 		//Clear previous frame
+// 		ctx0.clearRect(0, 0, can.width, can.height);
+// 		ctx1.clearRect(0, 0, can1.width, can1.height);
+
+// 		//Draw background darkness
+// 		ctx0.fillStyle = bgShade;
+// 		ctx0.fillRect(0, 0, can.width, can.height);
+
+// 		//Calculate light and shadows for each source and combine
+// 		for (var i = 0; i < S.length; i++) {
+// 			S[i].drawLight();
+// 		}
+
+// 		//Subtract all light from backgorund darkness
+// 		ctx0.globalCompositeOperation = 'destination-out';
+// 			ctx0.drawImage(can1, 0, 0);
+// 		ctx0.globalCompositeOperation = 'source-over';
+
+// 		outputCtx.drawImage(can0, 0, 0);
+// 	}
+
+// 	export function getSources() {
+// 		return S;
+// 	}
+
+// 	export function getBlocks() {
+// 		return B;
+// 	}
+
+// 	export function getNoCasts() {
+// 		return Nc;
+// 	}
+
+// 	export function moveLvl(dx, dy) {
+// 		for (var i = 0; i < B.length; i += 1) {
+// 			B[i].x += dx;
+// 			B[i].y += dy;
+// 		}
+// 		for (var i = 0; i < S.length; i += 1) {
+// 			S[i].x += dx;
+// 			S[i].y += dy;
+// 		}
+// 	}
+// }
+import { GameObject } from './Common';
+import { World } from './World';
+
+export module Matter {
+    //
+    // Types
+    //
+    export type Vector = {
+        x: number;
+        y: number;
+        create?: (x: number, y: number)=> Vector;
+        div?:    (v: Vector, s: number)=> Vector;
+        mult?:   (v: Vector, s: number)=> Vector;
+        clone?:  (a: Vector)=> Vector;
+        add?:    (a: Vector, b: Vector)=> Vector;
+        angle?:  (a: Vector, b: Vector)=> Vector;
+        cross?:  (a: Vector, b: Vector)=> Vector;
+        cross3?: (a: Vector, b: Vector, c: Vector)=> Vector;
+        dot?:    (a: Vector, b: Vector)=> number;
+        sub?:    (a: Vector, b: Vector)=> Vector;
+        perp?:   (v: Vector, negate?: boolean)=> Vector;
+        neg?:    (a: Vector)=> Vector;
+        rotate?: (a: Vector, ang: number)=> Vector;
+        normalise?:  (a: Vector)=> Vector;
+        magnitude?:  (a: Vector)=> number;
+        rotateAbout?:    (a: Vector, ang: number, p: number)=> Vector;
+        magnitudeSquared?:   (a: Vector)=> number;
+    };
+
+    type Matter = {
+        Engine: Engine,
+        World: World,
+        Body: Body,
+        Bodies: Bodies,
+        Query: Query,
+        Vector: Vector
+    };
+
+    type Engine = {
+        world: World;
+        timing : {
+            timeScale: number;
+            timestamp: number;
+        };
+        clear:  (e: Engine)=> void;
+        create: (opts?: object)=> Engine;
+        merge:  (a: Engine, b: Engine)=> Engine;
+        run: (a: Engine)=> void;
+    };
+
+    type World = {
+        gravity: {
+            scale: number;
+            x: number;
+            y: number;
+        },
+        add: (w: World, b: Body | Body[])=> void;
+        remove: (w: World, b: Body)=> void;
+    };
+
+    export type Body = {
+        friction: number;
+        frictionAir: number;
+        frictionStatic: number;
+        isStatic: boolean;
+        mass: number;
+        restitution: number;
+        slop: number;
+        readonly id: number;
+        readonly angle: number;
+        readonly angularSpeed: number;
+        readonly angularVelocity: number;
+        readonly area: string;
+        readonly axes: Vector[];
+        readonly density: number;
+        readonly force: Vector;
+        readonly motion: number;
+        readonly parent: Body;
+        readonly parts: Body[];
+        readonly position: Vector;
+        readonly speed: number;
+        readonly torque: number;
+        readonly velocity: Vector;
+        readonly vertices: number;
+        create: (opts?: object)=> Body;
+        rotate: (b: Body, ang: number, p?: Vector)=> void;
+        scale: (b: Body, x: number, y: number, p?: Vector)=> void;
+        set: (b: Body, s: string | {p: string, v: any}[], v?: any)=> void;
+        setPosition: (b: Body, v: Vector)=> void;
+        applyForce: (b: Body, p: Vector, f: Vector)=> void;
+        translate: (b: Body, t: Vector)=> void;
+    };
+
+    type Bodies = {
+        circle: (x: number, y: number, r: number, opts?: object, max?: number)=> Body;
+        polygon: (x: number, y: number, sides: number, r: number, opts?: object)=> Body;
+        rectangle: (x: number, y: number, w: number, h: number, opts?: object)=> Body;
+        trapezoid: (x: number, y: number, w: number, h: number, slope: number, opts?: object)=> Body;
+        fromVertices: (
+            x: number,
+            y: number,
+            v?: Vector[],
+            opts?: object,
+            internal?: boolean,
+            removeCollinear?: number,
+            minArea?: number
+        )=> Body;
+    };
+
+    type Query = {
+        collides: (b: Body, bodies: Body[])=> Body[];
+        point:  (bodies: Body[], point: Vector)=> Body[];
+        ray: (bodies: Body[], start: Vector, end: Vector, width?: number)=> Object[];
+        region: (bodies: Body[], bounds: Object, outside?: Boolean)=> Body[];
+    };
+
+    //
+    // Private Variables
+    //
+    declare let MatterJs: Matter;
+    let M: Matter = MatterJs,
+        mainEng: Engine;
+    
+    //
+    // Public Methods
+    //
+    export function init(topDown: boolean = false): void {
+        mainEng = M.Engine.create();
+        if (topDown) {
+            mainEng.world.gravity.y = 0;
+        }
+        M.Engine.run(mainEng);
+    };
+
+    export let Query = {
+        ray: function(
+            area: World.Area,
+            start: Vector,
+            end: Vector,
+            width: number = 1
+        ): BodyBase[] {
+            return area.objs.filter(b => 
+                b instanceof BodyBase &&
+                M.Query.ray([b.body], start, end, width)
+            ).map(b => b as BodyBase);
+        }
+    };
+
+    //
+    //  Private Classes
+    //
+    class BodyBase extends GameObject {
+        constructor(
+            public body: Body
+        ) {
+            super(body.position.x, body.position.y);
+            M.World.add(mainEng.world, body);
+        }
+
+        public die() {
+            M.World.remove(mainEng.world, this.body);
+            super.die();
+        }
+
+        public rotate(ang: number, p?: Vector): void {
+            M.Body.rotate(this.body, ang, p);
+        }
+
+        public scale(x: number, y: number, p?: Vector): void {
+            M.Body.scale(this.body, x, y, p);
+        }
+
+        public translate(v: Vector | number, y?: number): void {
+            if (typeof v === 'number') {
+                v = M.Vector.create(v, y);
+            }
+            M.Body.translate(this.body, v);
+        }
+
+        public applyForce(f: Vector, p?: Vector): void {
+            M.Body.applyForce(this.body, p || this.body.position, f);
+        }
+
+        public setProp(p: string | {[p: string]: any}, v?: any) {
+            if (typeof p === 'string') {
+                M.Body.set(this.body, p, v);
+            } else {
+                for (let prop in p) {
+                    M.Body.set(this.body, prop, p[prop]);
+                }
+            }
+        }
+
+        public collisions(bodies?: BodyBase[]): BodyBase[] {
+            if (!bodies) {
+                bodies = this.area.objs
+                    .filter(b => b instanceof BodyBase && b !== this)
+                    .map(b => b as BodyBase);
+            }
+            return bodies.filter(b => M.Query.collides(this.body, [b.body]).length);
+        }
+
+        //
+        // Shorthand getters/setters
+        //
+        get ang(): number { return this.body.angle; };
+
+        get x(): number { return this.body.position.x };
+        set x(v: number) { this.body ? M.Body.setPosition(this.body, {x: v, y: this.body.position.y}) : ''; };
+
+        get y(): number { return this.body.position.y };
+        set y(v: number) { this.body ? M.Body.setPosition(this.body, {x: this.body.position.x, y: v}) : ''; };
+    };
+
+    //
+    //  Public Classes
+    //
+    export class Rect extends BodyBase {
+        constructor(
+            x: number,
+            y: number,
+            private w: number,
+            private h?: number
+        ) {
+            super(M.Bodies.rectangle(x, y, w, h || w, { frictionAir : 0 }));
+            if (typeof this.h === 'undefined') {
+                this.h = this.w;
+            }
+        }
+
+        public draw(ctx: CanvasRenderingContext2D) {
+            ctx.translate(this.x - (this.w / 2), this.y - (this.h / 2));
+            ctx.rotate(this.ang);
+            ctx.fillRect(0, 0, this.w, this.h);
+        }
+    };
+
+    export class Circ extends BodyBase {
+        constructor(
+            x: number, 
+            y: number, 
+            public r: number
+        ) {
+            super(M.Bodies.circle(x, y, r, { frictionAir : 0 }));
+        }
+
+        public draw(ctx: CanvasRenderingContext2D) {
+            ctx.beginPath();
+                ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    };
+}
+import { GameObject } from './Common';
+import { Matter } from './Matter';
+
+export module Physics {
+	//
+    // Public Variables
+    //
+    export const
+        GRAV = 41.18, //pixels per frame^2
+        TAU  = 6.2832;
+
+	let globalCtx;
+	
+    //
+    // Class: Vector
+    //
+	export class Vec {
+		public x: number;
+		public y: number;
+
+		constructor(xm: number = 1, ya: number = 0, polar = false) {
+			if (polar) {
+				this.setMagAng(xm, ya);
+			} else {
+				this.x = xm;
+				this.y = ya;
+			}
+		}
+
+		public setAng(rad: number): void {
+			let mag = this.getMag();
+			this.x = Math.cos(rad) * mag;
+			this.y = Math.sin(rad) * mag;
+		}
+
+		public setMagAng(mag: number, ang: number): void {
+			this.x = Math.cos(ang) * mag;
+			this.y = Math.sin(ang) * mag;
+		}
+
+		public getAng(): number {
+			return Math.atan2(this.y, this.x);
+		}
+
+		public static getAng(v: Vec | Matter.Vector): number {
+			return Math.atan2(v.y, v.x);
+		}
+
+		public getMag(): number {
+			return Math.sqrt((this.x * this.x) + (this.y * this.y));
+		}
+
+		public static getMag(v: Vec | Matter.Vector): number {
+			return Math.sqrt((v.x * v.x) + (v.y * v.y));
+		}
+
+		public getNorm(): Vec {
+			let ang = this.getAng();
+			return new Vec(Math.cos(ang), Math.sin(ang));
+		}
+
+		public add(v: Vec | Matter.Vector): Vec {
+			return new Vec(this.x + v.x, this.y +  v.y);
+		}
+
+		public sub(v: Vec | Matter.Vector): Vec {
+			return new Vec(this.x - v.x, this.y -v.y);
+		}
+
+		public scale(s: number): Vec {
+			return new Vec(this.x * s, this.y * s);
+		}
+
+		public dot(v:Vec | Matter.Vector): number {
+			return (this.x * v.x) + (this.y * v.y)
+		}
+
+		public dis(v:Vec | Matter.Vector): number {
+			let a = (v.x - this.x) * (v.x - this.x);
+			let b = (v.y - this.y) * (v.y - this.y);
+			return Math.sqrt(a + b);
+		}
+
+		public angWith(v:Vec | Matter.Vector): number {
+			return Math.atan2(v.y - this.y, v.x - this.x);
+		}
+
+		public toString(): String {
+			let pos = '<' +  Math.round(this.x) + ', ' + Math.round(this.y) + '>';
+			let mag = Math.round(this.getMag() * 100) /  100;
+			let angR = Math.round(this.getAng() * 100) /  1000;
+			let angD = Math.round(angR * (180 / Math.PI));
+
+			return ('Pos: ' + pos + '\nMag: ' + mag + '\nAng: ' + angR + ' rads / ' + angD + '°');
+		}
+
+		public clone(): Vec {
+			return new Vec(this.x, this.y);
+		}
+    }
+    
+    //
+    // Class: Physics Context
+    //
+	export class Context {
+        private objs: Particle[] = [];
+        public  grav: Vec;
+
+		constructor(
+            public fric: number = 0,
+            gravity: boolean | number | Vec = false
+		) {
+            if (gravity === true) {               
+                this.grav = new Vec(0, GRAV);
+            } else if (typeof gravity === 'number') {
+                this.grav = new Vec(0, gravity);
+            } else {
+                this.grav = gravity as Vec;
+            }
+        }
+
+		public addParticle(p: Particle): Particle {
+            this.objs.push(p);
+            p.phyCtx = this;
+            return p;
+		}
+	}
+
+    //
+    // Class: Particle Object
+    //
+	export class Particle extends GameObject {
+		public p: Vec;
+		public v: Vec = new Vec(0, 0);
+        public f: Vec = new Vec(0, 0);
+        public phyCtx: Context;
+
+		constructor(
+			public x    : number,
+			public y    : number,
+            public rad  : number,
+			public fric : number = 0,
+			public el   : number = 0.5,
+			public m    : number = rad / 2
+		) {
+            super(x, y, 0, rad);
+            this.p = new Vec(x, y);
+            
+            if (!globalCtx) {
+                globalCtx = new Context();
+            }
+            globalCtx.addParticle(this);
+		}
+
+		public step(delta) {
+            if (this.phyCtx.grav) {
+                this.applyForce(this.phyCtx.grav);
+            }
+
+            let friction: Vec = this.v.clone();
+            friction.setAng((friction.getAng() + Math.PI) % (2 * Math.PI));
+            friction = friction.scale(this.m * this.phyCtx.fric * this.fric);
+            this.f = this.f.add(friction);
+
+            this.f.scale(delta);
+
+            this.v = this.v.add(this.f);
+            if (this.v.getMag() > 0.1) {
+                this.p = this.p.add(this.v);
+                this.x = this.p.x;
+                this.y = this.p.y;
+            } else if (this.v.getMag() !== 0) {
+                this.v = new Vec(0, 0);
+            }
+
+            this.f = new Vec(0, 0);
+
+            this.collisionAndBounce();
+        }
+        
+        public draw(ctx, dT) {
+            ctx.beginPath();
+                ctx.strokeStyle = 'dodgerblue';
+                ctx.arc(this.p.x, this.p.y, this.rad - 2, 0, TAU);
+            ctx.stroke();
+        }
+
+		public applyForce(F: Vec) {
+			this.f = this.f.add(F);
+        }
+
+		private collisionAndBounce = function() {
+			for (let i = 0, len = this.phyCtx.objs.length; i < len; i++) {
+				if ((this.phyCtx.objs[i] != this) &&
+					((this.p.dis(this.phyCtx.objs[i].p) - (this.rad + this.phyCtx.objs[i].rad) < 0))
+				) {
+					let delta: Vec = this.p.sub(this.phyCtx.objs[i].p);
+					let d: number = delta.getMag();
+					var mtd = delta.scale(((this.rad + this.phyCtx.objs[i].rad) - d) / d); 
+
+					let im1: number = 1 / this.m; 
+					let im2: number = 1 / this.phyCtx.objs[i].m;
+
+					this.p = this.p.add(mtd.scale(im1 / (im1 + im2)));
+					this.phyCtx.objs[i].p = this.phyCtx.objs[i].p.sub(mtd.scale(im2 / (im1 + im2)));
+
+					let iv: Vec = this.v.sub(this.phyCtx.objs[i].v);
+					mtd = mtd.getNorm();
+					let vn: number = iv.dot(mtd);
+
+					if (vn <= 0) {
+						var imp = ((-1 * vn) * (1 + this.el)) / (im1 + im2);
+						var impulse = mtd.scale(imp);
+
+						this.v = this.v.add(impulse.scale(im1));
+						this.phyCtx.objs[i].v = this.phyCtx.objs[i].v.sub(impulse.scale(im2));
+					}
+				}
+			}
+		}
+    }
+}
+import { Engine } from './Engine';
+import { GameObject } from './Common';
+import { Input } from './Input';
+
+export module World {
+    //
+    // Class: Area
+    //
+    export class Area {
+        public objs : GameObject[] = [];
+        public views : View[] = [];
+        private layout: {
+            grid: string;
+            objects: {[instance: string]: any[]};
+            width: number;
+            height: number;
+            x: number,
+            y: number
+        };
+        private active : boolean = false;
+
+        constructor(
+            public onInit     : ()=>void = ()=>{},
+            public onOpen     : ()=>void = ()=>{},
+            public onClose    : ()=>void = ()=>{},
+            private persist   : boolean = false,
+            view?             : View
+        ) {
+            if (!view) {
+                this.addView(new View(0, 0, 1));
+            }
+        };
+
+        private createLayout() {
+            let grid = this.layout.grid.split('\n');
+            let startCol = -1,
+                startRow = -1;
+            for (let i = 0; i < grid.length; i++) {
+                let m = grid[i].match(/[a-z0-9]/i);
+                if (m) {
+                    if (startCol === -1) {
+                        startCol = i;
+                    }
+                    if (m.index < startRow) {
+                        startRow = m.index;
+                    }
+                }
+            }
+            grid.forEach((l, row) => {
+                l.replace(
+                    /[a-z0-9]/gi, 
+                    (o, col) => {
+                        try {
+                            let obj = this.layout.objects[o];
+                            let inst = new obj[0](...obj.slice(1));
+                            inst.x = this.layout.x + ((col - startCol) * this.layout.width);
+                            inst.y = this.layout.y + ((row - startRow) * this.layout.height);
+                            this.addObject(inst);
+                        } catch {
+                            console.error(`Bunas Error: Cannot create object for character "${o}" in level layout`);
+                        }
+                        return o;
+                    }
+                );
+            });
+        }
+
+        public setLayout(
+            objs: {[instance: string]: any[]},
+            grid: string,
+            width: number = 64,
+            height?: number,
+            x: number = 0,
+            y: number = 0
+        ): void {
+            this.layout = {
+                grid: grid,
+                objects: objs,
+                width: width,
+                height: height || width,
+                x: x,
+                y: y
+            };
+        }
+
+        public open(): void {
+            if (!this.active) {
+                if (this.layout) {
+                    this.createLayout();
+                }
+                this.onInit();
+                this.views.forEach(v => v.reset());
+                this.active = true;
+            }
+            areas.push(this);
+            this.onOpen();
+        };
+
+        public close() {
+            if (!this.persist) {
+                this.active = false;
+                this.objs = [];
+            }
+            areas.splice(1, areas.indexOf(this));
+            this.onClose();
+        };
+
+        public addObject(o: GameObject, duplicate: Boolean = false): void {
+            if (!duplicate && o.area) {
+                o.area.removeObject(o);
+            }
+            if (!o.z) {
+                o.z = 0;
+            }
+            for(let i = 0, len = this.objs.length; i < len; i++) {
+                if (o.z > this.objs[i].z) {
+                    this.objs.splice(i, 0, o);
+                    return;
+                }
+            }
+            this.objs.push(o);
+            o.area = this;
+        };
+
+        public removeObject(o: GameObject): void {
+            this.objs.splice(this.objs.indexOf(o), 1);
+        }
+
+        public addView(v: View): number {
+            this.views.push(v);
+            return this.views.length;
+        };
+
+        public removeView(v: View): number {
+            this.views.splice(1, this.views.indexOf(v));
+            return this.views.length;
+        };
+
+        public togglePersistance(state?) {
+            this.persist = state === undefined ? this.persist = !this.persist : state;
+            if (!this.persist && !this.active) {
+                this.objs = [];
+            }
+        };
+    };
+
+    //
+    // Class: View Port
+    //
+    export class View {
+        private init_x       : number;
+        private init_y       : number;
+        private init_z       : number;
+        private init_width?  : number;
+        private init_height? : number;
+        private init_canX    : number;
+        private init_canY    : number;
+        private init_canZ    : number;
+        
+        constructor(
+            public x      : number = 0,
+            public y      : number = 0,
+            public z      : number = 1,
+            public ang    : number = 0, 
+            public width  : number = Engine.cW,
+            public height : number = Engine.cH,
+            public canX   : number = 0,
+            public canY   : number = 0,
+            public canZ   : number = 0
+        ) {
+            this.init_x       = x;
+            this.init_y       = y;
+            this.init_z       = z;
+            this.init_width   = width;
+            this.init_height  = height;
+            this.init_canX    = canX;
+            this.init_canY    = canY;
+            this.init_canZ    = canZ;
+        };
+
+        public translate(dx : number, dy : number) {
+            this.x += dx;
+            this.y += dy;
+        };
+
+        public zoom(dz : number) {
+            this.z *= dz;
+        };
+
+        public reset() {
+            this.x      = this.init_x;
+            this.y      = this.init_y;
+            this.z      = this.init_z;
+            this.width  = this.init_width;
+            this.height = this.init_height;
+            this.canX   = this.init_canX;
+            this.canY   = this.init_canY;
+            this.canZ   = this.init_canZ;
+        };
+    };
+
+    //
+    // Public Variables
+    //
+    export let globalArea: Area;
+
+    //
+    // Private Variables
+    //
+    let areas       : Area[] = [],
+        activeObjs  : GameObject[];
+
+    //
+    // Public Methods
+    //
+    export function step(dT: number) {
+        activeObjs = areas.reduce((t, a) => t.concat(a.objs), []);
+
+        for (let i = 0, len = activeObjs.length; i < len; i += 1) {
+            if (activeObjs[i].startStep) {
+                activeObjs[i].startStep(dT);
+            }
+        }
+        for (let i = 0, len = activeObjs.length; i < len; i += 1) {
+            activeObjs[i].step(dT);
+        }
+        for (let i = 0, len = activeObjs.length; i < len; i += 1) {
+            if (activeObjs[i].endStep) {
+                activeObjs[i].endStep(dT);
+            }
+        }
+    };
+
+    export function draw(ctx: CanvasRenderingContext2D, dT: number) {
+        areas
+            .reduce((t, a) => t.concat(a.views), [])
+            .forEach(v => {
+                let visibleObjs = activeObjs.filter(o =>
+                    true
+                    // o.clipRadius < 0 || (
+                    //     o.x + o.clipRadius > v.x &&
+                    //     o.x - o.clipRadius < v.x + v.width &&
+                    //     o.y + o.clipRadius > v.y &&
+                    //     o.y - o.clipRadius < v.y + v.height
+                    // )
+                );
+
+                ctx.save();
+                    ctx.translate(v.width, v.height);
+                    ctx.rotate(v.ang);
+                    ctx.translate(v.x - v.width, v.y - v.height);
+
+                    for (let i = 0, len = visibleObjs.length; i < len; i += 1) {
+                        if (activeObjs[i].startDraw) {
+                            visibleObjs[i].startDraw(ctx, dT);
+                        }
+                    }
+                    for (let i = 0, len = visibleObjs.length; i < len; i += 1) {
+                        visibleObjs[i].draw(ctx, dT);
+                    }
+                    for (let i = 0, len = visibleObjs.length; i < len; i += 1) {
+                        if (activeObjs[i].endDraw) {
+                            visibleObjs[i].endDraw(ctx, dT);
+                        }
+                    }
+                ctx.restore();
+            });
+    };
+    
+    export function goTo(a: Area, replace: boolean = true) {
+        if (replace) {
+            areas.forEach(act => act.close());
+        }
+        a.open();
+    };
+}

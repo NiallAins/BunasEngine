@@ -35,9 +35,16 @@
             height: 40px;
             overflow: hidden;
             margin-left: 25px;
+            transition: opacity 0.4s;
         }
         .expand div.open {
             height: auto;
+        }
+        .expand div:not(.open)>div {
+            opacity: 0;
+        }
+        .expand div.open>div {
+            opacity: 1;
         }
         .expand>div {
             margin-left: 0;
@@ -74,9 +81,11 @@
             margin-top: 5px;
             margin-bottom: 10px;
         }
-
         .itemDesc {
             white-space: pre-line;
+        }
+        .capOriginal {
+            text-transform: none;
         }
 
         .hljs-comment{
@@ -141,8 +150,7 @@
                 :class="{ open : curModule === i }"
             >
                 <h2 @click="
-                        curSection = -1;
-                        curItem = -1;
+                        curSection = curItem = curClass = curParam = -1;
                         curModule = curModule === i ? -1 : i
                     "
                 >
@@ -158,7 +166,7 @@
                     </span>
                     <h3 v-if="secLabel !== 'd'"
                         @click="
-                            curItem = -1;
+                            curItem = curClass = curParam = -1;
                             curSection = curSection === j ? -1 : j
                         "
                     >
@@ -169,7 +177,12 @@
                         v-for="(itemContent, itemLabel, k) in secContent"
                         :class="{ open : curItem === k }"
                     > 
-                        <h4 @click="curItem = curItem === k ? -1 : k">
+                        <h4 @click="
+                                curParam = curClass = -1;
+                                curItem = curItem === k ? -1 : k;
+                            "
+                            class="capOriginal"
+                        >
                             {{ itemLabel }}
                         </h4>
                         <div class="open">
@@ -180,25 +193,46 @@
                     <div
                         v-if="secLabel === 'c'"
                         v-for="(classContent, classLabel, k) in secContent"
-                        class="open"
+                        :class="{ open: curClass === k }"
                     >
-                        <h3>
+                        <h3 @click="
+                                curParam = curItem = -1;
+                                curClass = curClass === k ? -1 : k
+                            "
+                            class="capOriginal"
+                        >
                             {{ classLabel }}
                         </h3>
                         <div
-                            class="open"
                             v-for="(itemContent, itemLabel, l) in classContent"
+                            :class="{ open: curItem === l || itemLabel === 'd' }"
                         >
                             <span v-if="itemLabel === 'd'">
                                 <p>{{ itemContent.desc }}</p>
                                 <pre v-if="itemContent.snip"><code class="language-ts">{{ itemContent.snip }}</code></pre>
                             </span>
-                            <h4 @click="curItem = curItem === l ? -1 : k">
-                                {{ itemLabel }}
-                            </h4>
-                            <div class="open">
-                                <p class="itemDesc">{{ itemContent.desc }}</p>
-                                <pre><code class="language-ts">{{ itemContent.snip }}</code></pre>
+                            <h3 v-if="itemLabel !== 'd'"
+                                @click="
+                                    curParam = -1;
+                                    curItem = curItem === l ? -1 : l;
+                                "
+                            >
+                                {{ secLabels[itemLabel] }}
+                            </h3>
+                            <div
+                                v-if="itemLabel !== 'd'"
+                                v-for="(paramContent, paramLabel, m) in itemContent"
+                                :class="{ open: curParam === m }"
+                            >
+                                <h4 @click="curParam = curParam === m ? -1 : m"
+                                    class="capOriginal"
+                                >
+                                    {{ paramLabel }}
+                                </h4>
+                                <div class="open">
+                                    <p class="itemDesc">{{ paramContent.desc }}</p>
+                                    <pre><code class="language-ts">{{ paramContent.snip }}</code></pre>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -237,7 +271,9 @@
                 },
                 curModule: -1,
                 curSection: -1,
-                curItem: -1
+                curItem: -1,
+                curClass: -1,
+                curParam: -1
             },
             created: function() {
                 let xhttp = new XMLHttpRequest(),

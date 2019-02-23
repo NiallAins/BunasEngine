@@ -1,13 +1,17 @@
 import { Engine } from './Engine';
-import { GameObject } from './Core';
+import { GameObject } from './Common';
 import { Physics } from './Physics';
 
+/** Provides functions and classes for rendering bitmap and vector graphics on the canvas */
 export module Graphics {
     //
     // Types / Interfaces
     //
+    /** */
     export type keyframe     = number | number[] | number[][] | (number | string)[][];
+    /** */
     export type keyframeSet  = { [property: string] : keyframe };
+    /** */
     export type drawFunction = (frame: { [property: string] : number }, ctx: CanvasRenderingContext2D)=>void;
     export type spriteState  = {
         duration   : number,
@@ -19,8 +23,9 @@ export module Graphics {
         onEnd?     : ()=>void
     };
 
+    /** Base interface implemented by all sprites, both vector and bitmap */
     export interface ISprite {
-        duration: number;
+        setDuration: (frames: number, perFrame?: boolean)=>void;
         draw: (ctx: CanvasRenderingContext2D, x: number, y: number, ang: number)=>void;
         toggle: (play: boolean, setFrame: number)=>void;
         reverse: ()=>void;
@@ -28,7 +33,9 @@ export module Graphics {
     };
 
     export let
+        /** List of preloaded sprite assets */
         sprites: { [name: string] : HTMLImageElement },
+        /** List of preloaded background assets */
         bgs: { [name: string] : HTMLImageElement };
 
     export function setAssets(
@@ -43,64 +50,109 @@ export module Graphics {
     //
     // Class: Bitmap Sprite
     //
+    /** Class for a bitmap sprite */
     export class Sprite implements ISprite {
         private sprite    : HTMLImageElement;
-        public width      : number;
-        public height     : number;
-        public duration   : number;
-        public onEnd      : ()=>void = ()=>{};
         private frCurrent : number = 0;
+        private frDur     : number;
+        private paused    : boolean = false;
+        private reversed  : boolean = false;
+        /** */
+        public width      : number;
+        /** */
+        public height     : number;
+        /** Animation lifecycle hook to run after animation completes a loop */
+        public onEnd      : ()=>void = ()=>{};
 
+        /**
+            Sprite can be provided as an Image element or the name of a preloaded asset.
+            Animated sprites must take the form of an unpadded horizontal sprite sheet.
+            frTotal is the number of frames in the sprite sheet.
+            duration is the number of game frame animation will last; may be a fraction.
+        */
         constructor(
             sprite  : string | HTMLImageElement,
-            private frTotal : number,
-            private frRate  : number
+            private frTotal: number = 1,
+            duration: number = 0
         ) {
             this.sprite = typeof sprite === 'string' ? sprites[sprite] : sprite;
             this.width  = this.sprite.width / frTotal;
             this.height = this.sprite.height;
+            this.frDur = duration / frTotal;
         };
         
+        /** Draw the sprite to the canvas at the point { canX, canY }.
+            Ang may be provided to rotate the sprite by the given angle.
+        */
         public draw(ctx: CanvasRenderingContext2D, canX: number, canY: number, ang: number = 0): void {
-            ctx.drawImage(
-                this.sprite,
-                Math.floor(this.frCurrent) * this.width, 0,
-                this.width, this.height,
-                canX, canY,
-                this.width, this.height
-            );
-            if (this.frRate !== 0) {
-                if (this.frRate > 1) {
-                    this.frCurrent += (this.frRate / 33);
+            ctx.save();
+                ctx.translate(canX, canY);
+                ctx.rotate(ang);
+                let currentFrame = Math.floor(this.frCurrent) * this.width;
+                if (this.reversed) {
+                    currentFrame = this.frTotal - currentFrame;
+                }
+                ctx.drawImage(
+                    this.sprite,
+                    currentFrame,   0,
+                    this.width,     this.height,
+                    0,              0,
+                    this.width,     this.height
+                );
+                if (this.frDur > 0 && !this.paused) {
+                    this.frCurrent += this.frDur;
                     if (this.frCurrent >= this.frTotal) {
                         this.frCurrent = 0;
                     }
-                } else {
-                    this.frCurrent -= (this.frRate / 30);
-                    if (this.frCurrent <= 0) {
-                        this.frCurrent = this.frTotal - 1;
-                    }
                 }
+            ctx.restore();
+        };
+
+        /** Sets number of game frames animation will last for
+            If perFrame, sets number of game frames a single frame of sprite sheet will last for
+        */
+        public setDuration(frames: number, perFrame: boolean = false) {
+            this.frDur = perFrame ? frames : frames / this.frTotal;
+        }
+
+        /** Play/pause animation.
+            Will toggle to opposite of current state if play is not provided.
+        */
+        public toggle(play?: boolean) {
+            if (typeof play === 'undefined') {
+                this.paused = !this.paused;
+            } else {
+                this.paused = !play;
+            } 
+
+        };
+
+        /** Reverse direction of animation.
+            Will toggle to opposite of current direction if runBackwards is not provided.
+        */
+        public reverse(runBackwards?:boolean) {
+            if (typeof runBackwards === 'undefined') {
+                this.reversed = !this.reversed;
+            } else {
+                this.reversed = runBackwards;
             }
-        };
-
-        public toggle() {
-
-        };
-
-        public reverse() {
-
         };
     };
 
     //
     // Class: Vector Sprite
     //
+    /** Class for vector graphic sprites */
     export class VectorSprite implements ISprite {
-        public fr        : number = 0;
+        private fr        : number = 0;
+        private paused : boolean = false;
+        /** Animation lifecycle hook to run after animation completes a loop */
         public onEnd     : () => void = () => {};
-        private isPaused : boolean = false;
 
+        /** Sprite is provided as a draw function with a series of canvas draw commands
+            keyFrameSet contains a list of keyframes whose variables will be interpolated based on the current frame before being provided to the draw function
+            duration is the number of game frame animation will last; may be a fraction.
+        */
         constructor(
             public drawFunction: drawFunction,
             public keyframeSet: keyframeSet = null,
@@ -108,6 +160,9 @@ export module Graphics {
         ) {
         };
 
+        /** Draw the sprite to the canvas at the point { canX, canY }.
+            Ang may be provided to rotate the sprite by the given angle.
+        */
         public draw(ctx: CanvasRenderingContext2D, x: number, y: number, ang: number = 0) {
             ctx.save();
                 ctx.translate(x, y);
@@ -115,7 +170,7 @@ export module Graphics {
                 this.drawFunction(this.keyframeSet ? tween(this.keyframeSet, this.fr) : null, ctx);
             ctx.restore();
 
-            if (this.isPaused) {
+            if (this.paused) {
                 return;
             }
 
@@ -127,15 +182,33 @@ export module Graphics {
             }
         };
 
-        public toggle(play: boolean = null, setFrame?: number) {
-            this.isPaused = play === null ? !this.isPaused : !play;
-            if (setFrame || setFrame === 0) {
-                this.fr = setFrame;
+        /** Sets number of game frames to display animation for */
+        public setDuration(frames: number) {
+            this.duration = this.duration < 0 ? frames * -1 : frames;
+        }
+
+        /** Play/pause animation.
+            Will toggle to opposite of current state if play is not provided.
+        */
+        public toggle(play?: boolean ) {
+            if (typeof play === 'undefined') {
+                this.paused = !this.paused;
+            } else {
+                this.paused = !play;
             }
         };
 
-        public reverse() {
-            this.duration *= -1;
+        /** Reverse direction of animation.
+            Will toggle to opposite of current direction if runBackwards is not provided.
+        */
+        public reverse(runBackwards?:boolean) {
+            if (
+                (typeof runBackwards === 'undefined') ||
+                (this.duration < 0 && !runBackwards) ||
+                (this.duration > 0 && runBackwards)
+            ) {
+                this.duration *= -1;
+            }
         };
     };
 
@@ -223,6 +296,11 @@ export module Graphics {
                 }
             }
         };
+
+        /** Sets number of game frames to display sprite animation for */
+        public setDuration(frames: number) {
+            this.duration = frames;
+        }
 
         public changeState(state: string, setFrame: number = -1, transition: number = 5, ease: string = 'sine'): void {
             if (this.currentState === state && setFrame === -1) {
@@ -324,6 +402,7 @@ export module Graphics {
         };
     };
 
+    /** Class to create a particle emitter */
     export class Emitter extends GameObject {
         private parts       : Particle[] = [];
         private currentRate : number = 0;
@@ -335,12 +414,12 @@ export module Graphics {
         private _power      : number[] = [1, 1];
         private _rate       : number[] = [10, 10];
 
-		constructor(
+        constructor(
 			public x      : number,
 			public y      : number,
-			       ang?   : number | number[],
-			       power? : number | number[],
-			       rate?  : number | number[],
+		    ang?   : number | number[],
+		    power? : number | number[],
+		    rate?  : number | number[],
 		) {
             super(x, y);
             if (ang) {

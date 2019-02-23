@@ -1,4 +1,4 @@
-import { GameObject } from './Core';
+import { GameObject } from './Common';
 import { World } from './World';
 
 export module Matter {
@@ -193,7 +193,9 @@ export module Matter {
 
         public collisions(bodies?: BodyBase[]): BodyBase[] {
             if (!bodies) {
-                bodies = this.area.objs.filter(b => b instanceof BodyBase && b !== this);
+                bodies = this.area.objs
+                    .filter(b => b instanceof BodyBase && b !== this)
+                    .map(b => b as BodyBase);
             }
             return bodies.filter(b => M.Query.collides(this.body, [b.body]).length);
         }

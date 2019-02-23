@@ -1,11 +1,13 @@
 import { Engine } from './Engine';
-import { GameObject } from './Core';
+import { GameObject } from './Common';
 import { Graphics } from './Graphics';
 
+/** This module provides an interface for user inputs */
 export module Input {
     //
     // Types / Interfaces
     //
+    /** Private: to store cursor position */
     type Point = {
         x : number;
         y : number;
@@ -20,12 +22,14 @@ export module Input {
         circ: boolean;
     };
 
+    /** Private: Describes state of keyboard input */
     interface KeyBoard {
         down    : string;
         up      : string;
         pressed : string[];
     };
 
+    /** Private: Describes single mouse button state */
     interface MouseButton {
         down       : boolean;
         up         : boolean;
@@ -38,6 +42,7 @@ export module Input {
         dragPts    : Point[];
     };
 
+    /** Describes current state of mouse input */
     export interface Mouse extends Point {
         left  : MouseButton;
         right : MouseButton;
@@ -61,6 +66,7 @@ export module Input {
     // Public Variables
     //
     export let
+        /** Current state of mouse input */
         mouse: Mouse = {
             x:    0,
             y:    0,
@@ -88,6 +94,10 @@ export module Input {
             }
         },
 
+        /**
+            Current state of keyboard input
+            Pressed stores names of all keys currently pressed
+        */
         key: KeyBoard = {
             up      : null,
             down    : null,
@@ -97,10 +107,11 @@ export module Input {
     //
     // Setters / Getters
     //
+    /** Sets number of pixels cursor must move while pressed before drag event is triggered */
     export function setDragTolerance(tolerance: number): void {
         dragCheck.tolerance = tolerance;
     };
-
+    /** Sets maximum milliseconds between clicks in a double click in order for event to be trigged */
     export function setdoubleClickWait(v: number): void {
         dblClickWait = v;
     };
@@ -129,6 +140,10 @@ export module Input {
         key.up   = null;
     };
 
+    /**
+        Enable/Disable browser context menu on right click
+        Disabled by default
+     */
     export function toggleContextMenu(show: boolean = true): void {
         if (show) {
             window.oncontextmenu = function (e) { };
@@ -139,10 +154,15 @@ export module Input {
         }
     };
 
+    /** Returns true is any of the key names provided are currently pressed  */
     export function checkKey(...keys: string[]): boolean | object {
         return keys.some(k => key.pressed.indexOf(k) !== -1);
     };
 
+    /**
+        Sets cursor type if CSS cursor name is provided
+        Sets a custom cursor to be rendered if draw function is provided
+    */
     export function setCursor(cursor: (ctx: CanvasRenderingContext2D, delta: number)=>void | string): void {
         if (typeof cursor === 'string') {
             (Engine.getCanvasEl() as HTMLElement).style.cursor = cursor;
@@ -161,6 +181,11 @@ export module Input {
         }
     };
 
+    /**
+        Registers game object with relative hit box in which to listener for mouseover events
+        If circular, hit box will be a circle
+        If centered, box will be centered on object.x, object.y; otherwise, will be aligned with top left
+    */
     export function setMouseListener(g: GameObject, width: number, height: number, circular: boolean = false, centered: boolean = false) {
         let x0, y0, x1, y1 = 0;
         if (circular) {
@@ -187,6 +212,7 @@ export module Input {
         });
     };
 
+    /** Calls setMouseListener with width and height of provided sprite */
     export function setMouseListenerFromSprite(g: GameObject, sprite: Graphics.Sprite, centered: boolean = false) {
         setMouseListener(g, sprite.width, sprite.height, false, centered);
     };

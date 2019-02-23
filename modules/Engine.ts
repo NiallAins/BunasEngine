@@ -2,6 +2,7 @@ import { Debug } from './Debug';
 import { Input } from './Input';
 import { World } from './World';
 
+/** This module controls initalization of engine, asset loading and application lifecycle loop */
 export module Engine {
     //
     // Types
@@ -153,14 +154,14 @@ export module Engine {
     */
     export function preLoad(
         assets            : AssetRouteList,
-        loadingDrawFunc?  : (fractionLoaded: number)=>void
+        loadingDrawFunc?  : (ctx: CanvasRenderingContext2D, fractionLoaded: number)=>void
     ) {
         if (initComplete) {
             console.error('Bunas Error: Engine already initalised. Assets can only be preloaded when called before Engine.init()');
             return;
         }
         if (!loadingDrawFunc) {
-            loadingDrawFunc = function(fractionLoaded) {
+            loadingDrawFunc = function(ctx, fractionLoaded) {
                 ctx.strokeStyle = '#fff';
                 ctx.fillStyle = '#fff';
                 ctx.lineWidth = 10;
@@ -179,7 +180,7 @@ export module Engine {
 
     function internalLoad(
         assetRoutes       : AssetRouteList,
-        loadingDrawFunc?  : (fractionLoaded: number)=>void
+        loadingDrawFunc?  : (ctx: CanvasRenderingContext2D, fractionLoaded: number)=>void
     ): void {
         spriteLoader = assetRoutes.sprites || {};
         soundLoader  = assetRoutes.sounds || {};
@@ -193,10 +194,10 @@ export module Engine {
         advanceLoading(loadingDrawFunc);
     };
 
-    function advanceLoading(loadScreen: (completion: number)=>void): void {
+    function advanceLoading(loadScreen: (ctx: CanvasRenderingContext2D, completion: number)=>void): void {
         if (loading > 0) {
             ctx.clearRect(0, 0, cW, cH);
-            loadScreen(loading / assetTotal);
+            loadScreen(ctx, loading / assetTotal);
             window.requestAnimationFrame(advanceLoading.bind(null, loadScreen));
         } else {
             assets = {

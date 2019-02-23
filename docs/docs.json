@@ -1,6 +1,78 @@
 {
 	"common": {
 		"d": "The following functions and classes are in global scope and so can be imported directly.",
+		"c": {
+			"GameObject": {
+				"d": {
+					"desc": "    Base class from which all other game objects will inherit\r\n",
+					"snip": "import { GameObject } from './Bunas';"
+				},
+				"m": {
+					"Class Constructor": {
+						"desc": "        All game objects will sorted by z to determine draw/step order.\r\n        If clipRadius > 0, draw/step will only be called if object is within clipRadius pixels of an active World.View port.\r\n    ",
+						"snip": "constructor(\n    public x : number,\n    public y : number,\n    public z : number = 0,\n    public clipRadius : number = 0\n) "
+					},
+					"step": {
+						"desc": " Called on each Engine step event ",
+						"snip": "public step      (delta: number): void "
+					}
+				},
+				"v": {
+					"area": {
+						"desc": " Current area object is in ",
+						"snip": "public area: World.Area"
+					},
+					"startStep": {
+						"desc": " Called at start of each Engine step event ",
+						"snip": "public startStep?(delta: number): void;\n/** Called at end of each Engine step event */\npublic endStep?  (delta: number): void;\n/** Called on each Engine draw event */\npublic draw      (ctx: CanvasRenderingContext2D, delta: number): void {}"
+					},
+					"startDraw": {
+						"desc": " Called at start of each Engine draw event ",
+						"snip": "public startDraw?(ctx: CanvasRenderingContext2D, delta: number): void;\n/** Called at end of each Engine draw event */\npublic endDraw?  (ctx: CanvasRenderingContext2D, delta: number): void;\n/** Called on object mouseover if Input.setMouseListener() has been set */\npublic onMouseOver?(m: Input.Mouse): void;\n/* Removes instance from game */\npublic die(): void {\n    this.area.removeObject(this);\n}"
+					}
+				}
+			}
+		}
+	},
+	"Debug": {
+		"d": {
+			"desc": " Provides helper functions to debug application ",
+			"snip": "import { Debug } from './Bunas';"
+		},
+		"v": {
+			"fontSize": {
+				"desc": " Debugger output font size ",
+				"snip": "let fontSize        : number = 14"
+			},
+			"color": {
+				"desc": " Degugger output font color ",
+				"snip": "let color           : string = 'dodgerblue'"
+			},
+			"defaultOptions": {
+				"desc": " Toggle default proporties displayed in debugger ",
+				"snip": "let defaultOptions  : {[option: string] : boolean}"
+			}
+		},
+		"f": {
+			"toggle": {
+				"desc": " Turn debugger on/off ",
+				"snip": "function toggle(state?): void "
+			},
+			"log": {
+				"desc": "        Log a variable to the debugger.\r\n        Objects will be stringifyed.\r\n        If logging a variable on every step, set persist = false to continually clear previous output.\r\n    ",
+				"snip": "function log(data: any, persist = true): void "
+			},
+			"clear": {
+				"desc": " Clear debugger output ",
+				"snip": "function clear(): void "
+			}
+		}
+	},
+	"Engine": {
+		"d": {
+			"desc": " This module controls initalization of engine, asset loading and application lifecycle loop ",
+			"snip": "import { Engine } from './Bunas';"
+		},
 		"t": {
 			"AssetRouteList": {
 				"desc": " List of assets names with relative file path ",
@@ -60,7 +132,197 @@
 			},
 			"preLoad": {
 				"desc": " \r\n        Loads image and sound assets from provided list of routes before application is initalised\r\n        Optional drawing function allows creation of custom loading bar\r\n    ",
-				"snip": "function preLoad(\n    assets            : AssetRouteList,\n    loadingDrawFunc?  : (fractionLoaded: number)=>void\n) "
+				"snip": "function preLoad(\n    assets            : AssetRouteList,\n    loadingDrawFunc?  : (ctx: CanvasRenderingContext2D, fractionLoaded: number)=>void\n) "
+			}
+		}
+	},
+	"Graphics": {
+		"d": {
+			"desc": " Provides functions and classes for rendering bitmap and vector graphics on the canvas ",
+			"snip": "import { Graphics } from './Bunas';"
+		},
+		"t": {
+			"keyframe": {
+				"desc": " ",
+				"snip": "type keyframe     = number | number[] | number[][] | (number | string)[][];\n/** */\nexport type keyframeSet  = { [property: string] : keyframe }"
+			},
+			"drawFunction": {
+				"desc": " ",
+				"snip": "type drawFunction = (frame: { [property: string] : number }, ctx: CanvasRenderingContext2D)=>void;\nexport type spriteState  = {\n    duration   : number,\n    elements   : { [element: string] : keyframeSet },\n    fr?        : number,\n    iteration? : number,\n    easeIn?    : string,\n    easeOut?   : string,\n    onEnd?     : ()=>void\n}"
+			},
+			"ISprite": {
+				"desc": " Base interface implemented by all sprites, both vector and bitmap ",
+				"snip": "interface ISprite {\n    setDuration: (frames: number, perFrame?: boolean)=>void;\n    draw: (ctx: CanvasRenderingContext2D, x: number, y: number, ang: number)=>void;\n    toggle: (play: boolean, setFrame: number)=>void;\n    reverse: ()=>void;\n    onEnd: ()=>void;\n}"
+			}
+		},
+		"v": {
+			"sprites": {
+				"desc": " List of preloaded sprite assets ",
+				"snip": "let sprites: { [name: string] : HTMLImageElement }"
+			},
+			"bgs": {
+				"desc": " List of preloaded background assets ",
+				"snip": "let bgs: { [name: string] : HTMLImageElement }"
+			}
+		},
+		"c": {
+			"Sprite": {
+				"d": {
+					"desc": " Class for a bitmap sprite ",
+					"snip": "import { Sprite } from './Bunas';"
+				},
+				"m": {
+					"Class Constructor": {
+						"desc": "            Sprite can be provided as an Image element or the name of a preloaded asset.\r\n            Animated sprites must take the form of an unpadded horizontal sprite sheet.\r\n            frTotal is the number of frames in the sprite sheet.\r\n            duration is the number of game frame animation will last; may be a fraction.\r\n        ",
+						"snip": "constructor(\n    sprite  : string | HTMLImageElement,\n    private frTotal: number = 1,\n    duration: number = 0\n) "
+					},
+					"draw": {
+						"desc": " Draw the sprite to the canvas at the point { canX, canY }.\r\n            Ang may be provided to rotate the sprite by the given angle.\r\n        ",
+						"snip": "public draw(ctx: CanvasRenderingContext2D, canX: number, canY: number, ang: number = 0): void "
+					},
+					"setDuration": {
+						"desc": " Sets number of game frames animation will last for\r\n            If perFrame, sets number of game frames a single frame of sprite sheet will last for\r\n        ",
+						"snip": "public setDuration(frames: number, perFrame: boolean = false) "
+					},
+					"toggle": {
+						"desc": " Play/pause animation.\r\n            Will toggle to opposite of current state if play is not provided.\r\n        ",
+						"snip": "public toggle(play?: boolean) "
+					},
+					"reverse": {
+						"desc": " Reverse direction of animation.\r\n            Will toggle to opposite of current direction if runBackwards is not provided.\r\n        ",
+						"snip": "public reverse(runBackwards?:boolean) "
+					}
+				},
+				"v": {
+					"width": {
+						"desc": " ",
+						"snip": "public width      : number"
+					},
+					"height": {
+						"desc": " ",
+						"snip": "public height     : number"
+					},
+					"onEnd": {
+						"desc": " Animation lifecycle hook to run after animation completes a loop ",
+						"snip": "public onEnd      : ()=>void = ()=>{}"
+					}
+				}
+			},
+			"VectorSprite": {
+				"d": {
+					"desc": " Class for vector graphic sprites ",
+					"snip": "import { VectorSprite } from './Bunas';"
+				},
+				"m": {
+					"Class Constructor": {
+						"desc": " Sprite is provided as a draw function with a series of canvas draw commands\r\n            keyFrameSet contains a list of keyframes whose variables will be interpolated based on the current frame before being provided to the draw function\r\n            duration is the number of game frame animation will last; may be a fraction.\r\n        ",
+						"snip": "constructor(\n    public drawFunction: drawFunction,\n    public keyframeSet: keyframeSet = null,\n    public duration: number = 30\n) "
+					},
+					"draw": {
+						"desc": " Draw the sprite to the canvas at the point { canX, canY }.\r\n            Ang may be provided to rotate the sprite by the given angle.\r\n        ",
+						"snip": "public draw(ctx: CanvasRenderingContext2D, x: number, y: number, ang: number = 0) "
+					},
+					"setDuration": {
+						"desc": " Sets number of game frames to display animation for ",
+						"snip": "public setDuration(frames: number) "
+					},
+					"toggle": {
+						"desc": " Play/pause animation.\r\n            Will toggle to opposite of current state if play is not provided.\r\n        ",
+						"snip": "public toggle(play?: boolean ) "
+					},
+					"reverse": {
+						"desc": " Reverse direction of animation.\r\n            Will toggle to opposite of current direction if runBackwards is not provided.\r\n        ",
+						"snip": "public reverse(runBackwards?:boolean) "
+					}
+				},
+				"v": {
+					"onEnd": {
+						"desc": " Animation lifecycle hook to run after animation completes a loop ",
+						"snip": "public onEnd     : () => void = () => {}"
+					}
+				}
+			},
+			"Emitter": {
+				"d": {
+					"desc": " Class to create a particle emitter ",
+					"snip": "import { Emitter } from './Bunas';"
+				},
+				"m": {
+					"Class Constructor": {
+						"desc": "",
+						"snip": "constructor(\r\n\t\t\tpublic x      : number,\r\n\t\t\tpublic y      : number,\r\n\t\t    ang?   : number | number[],\r\n\t\t    power? : number | number[],\r\n\t\t    rate?  : number | number[],\r\n\t\t) {"
+					}
+				}
+			}
+		},
+		"f": {
+			"setDuration": {
+				"desc": " Sets number of game frames to display sprite animation for ",
+				"snip": "public setDuration(frames: number) "
+			}
+		}
+	},
+	"Input": {
+		"d": {
+			"desc": " This module provides an interface for user inputs ",
+			"snip": "import { Input } from './Bunas';"
+		},
+		"t": {
+			"Point": {
+				"desc": " Private: to store cursor position ",
+				"snip": "type Point = {\n    x : number;\n    y : number;\n}"
+			},
+			"KeyBoard": {
+				"desc": " Private: Describes state of keyboard input ",
+				"snip": "interface KeyBoard {\n    down    : string;\n    up      : string;\n    pressed : string[];\n}"
+			},
+			"MouseButton": {
+				"desc": " Private: Describes single mouse button state ",
+				"snip": "interface MouseButton {\n    down       : boolean;\n    up         : boolean;\n    doubleUp   : boolean;\n    pressed    : boolean;\n    drag       : boolean;\n    startDrag  : boolean;\n    endDrag    : boolean;\n    dragging   : boolean;\n    dragPts    : Point[];\n}"
+			},
+			"Mouse": {
+				"desc": " Describes current state of mouse input ",
+				"snip": "interface Mouse extends Point {\n    left  : MouseButton;\n    right : MouseButton;\n}"
+			}
+		},
+		"v": {
+			"mouse": {
+				"desc": " Current state of mouse input ",
+				"snip": "let mouse: Mouse = {\n    x:    0,\n    y:    0,\n    left: {\n        down       : false,\n        up         : false,\n        doubleUp   : false,\n        pressed    : false,\n        drag       : false,\n        startDrag  : false,\n        endDrag    : false,\n        dragging   : false,\n        dragPts    : []\n    },\n    right: {\n        down       : false,\n        up         : false,\n        doubleUp   : false,\n        pressed    : false,\n        drag       : false,\n        startDrag  : false,\n        endDrag    : false,\n        dragging   : false,\n        dragPts    : []\n    }\n}"
+			},
+			"key": {
+				"desc": "            Current state of keyboard input\r\n            Pressed stores names of all keys currently pressed\r\n        ",
+				"snip": "let key: KeyBoard = {\n    up      : null,\n    down    : null,\n    pressed : []\n}"
+			}
+		},
+		"f": {
+			"setDragTolerance": {
+				"desc": " Sets number of pixels cursor must move while pressed before drag event is triggered ",
+				"snip": "function setDragTolerance(tolerance: number): void "
+			},
+			"setdoubleClickWait": {
+				"desc": " Sets maximum milliseconds between clicks in a double click in order for event to be trigged ",
+				"snip": "function setdoubleClickWait(v: number): void "
+			},
+			"toggleContextMenu": {
+				"desc": "        Enable/Disable browser context menu on right click\r\n        Disabled by default\r\n     ",
+				"snip": "function toggleContextMenu(show: boolean = true): void "
+			},
+			"checkKey": {
+				"desc": " Returns true is any of the key names provided are currently pressed  ",
+				"snip": "function checkKey(...keys: string[]): boolean | object "
+			},
+			"setCursor": {
+				"desc": "        Sets cursor type if CSS cursor name is provided\r\n        Sets a custom cursor to be rendered if draw function is provided\r\n    ",
+				"snip": "function setCursor(cursor: (ctx: CanvasRenderingContext2D, delta: number)=>void | string): void "
+			},
+			"setMouseListener": {
+				"desc": "        Registers game object with relative hit box in which to listener for mouseover events\r\n        If circular, hit box will be a circle\r\n        If centered, box will be centered on object.x, object.y; otherwise, will be aligned with top left\r\n    ",
+				"snip": "function setMouseListener(g: GameObject, width: number, height: number, circular: boolean = false, centered: boolean = false) "
+			},
+			"setMouseListenerFromSprite": {
+				"desc": " Calls setMouseListener with width and height of provided sprite ",
+				"snip": "function setMouseListenerFromSprite(g: GameObject, sprite: Graphics.Sprite, centered: boolean = false) "
 			}
 		}
 	}

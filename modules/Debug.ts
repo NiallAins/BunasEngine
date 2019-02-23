@@ -1,6 +1,7 @@
 import { Engine } from './Engine';
 import { Input } from './Input';
 
+/** Provides helper functions to debug application */
 export module Debug {
     //
     // Private Variables
@@ -31,8 +32,11 @@ export module Debug {
     // Public Variables
     //
     export let
+        /** Debugger output font size */
         fontSize        : number = 14,
+        /** Degugger output font color */
         color           : string = 'dodgerblue',
+        /** Toggle default proporties displayed in debugger */
         defaultOptions  : {[option: string] : boolean} = {
             dt: true, 
             input : true
@@ -41,6 +45,7 @@ export module Debug {
     //
     // Public Methods
     //
+    /** Turn debugger on/off */
     export function toggle(state?): void {
         if (state !== show) {
             show = state === undefined ? !show : state;
@@ -48,11 +53,17 @@ export module Debug {
         }
     };
 
+    /**
+        Log a variable to the debugger.
+        Objects will be stringifyed.
+        If logging a variable on every step, set persist = false to continually clear previous output.
+    */
     export function log(data: any, persist = true): void {
         let entry = JSON.stringify(data, null, '\t');
         persist ? permLog.push(entry) : logs.push(entry);
     };
 
+    /** Clear debugger output */
     export function clear(): void {
         permLog = [];
     };

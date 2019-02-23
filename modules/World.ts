@@ -1,5 +1,5 @@
 import { Engine } from './Engine';
-import { GameObject } from './Core';
+import { GameObject } from './Common';
 import { Input } from './Input';
 
 export module World {

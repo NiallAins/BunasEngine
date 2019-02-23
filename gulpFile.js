@@ -29,6 +29,9 @@ gulp.task('compile', function() {
 
 gulp.task('autoDoc', function(cb) {
     gulp.src('./modules/*.ts')
+        .pipe(concat('src.txt'))
+        .pipe(gulp.dest('./docs'));
+    gulp.src('./modules/*.ts')
         .pipe(concat('tmp.txt'))
         .on('data', function(file) {
             fs.writeFile(
@@ -39,7 +42,7 @@ gulp.task('autoDoc', function(cb) {
         });
 });
 
-gulp.task('default', ['condense', 'compile'], function() {
+gulp.task('default', ['condense', 'compile', 'autoDoc'], function() {
     gulp.watch('./modules/*.ts', ['condense', 'autoDoc']);
     gulp.watch('./dist/dev/*', ['compile']);
 });
@@ -79,13 +82,14 @@ function tsToJson(inp) {
                 m : {}
             }
             extractRecurse(dataBody, currentModule, dataHead.name);
-            if (!doc[currentModule].c[dataHead.name].m['class constructor']) {
+            if (!doc[currentModule].c[dataHead.name].m['Class Constructor']) {
                 let cStart = dataBody.indexOf('constructor');
-                doc[currentModule].c[dataHead.name].m['class constructor'] = {
+                doc[currentModule].c[dataHead.name].m['Class Constructor'] = {
                     desc : '',
                     snip : extractFuncDeclaration(dataBody.substring(cStart))
                 }
             }
+            extractRecurse(data.substring(dataHead.end + dataBody.length), currentModule);
         } else {
             let t = '';
             switch (dataHead.type) {
@@ -128,12 +132,12 @@ function tsToJson(inp) {
             typeMatch = inp.match(/.*/)[0].match(typeRegex);
         typeMatch = typeMatch ? typeMatch[0] : '';
         if (typeMatch === 'constructor') {
-            nameMatch = 'class constructor';
+            nameMatch = 'Class Constructor';
             typeMatch = 'function';
         } else {
             nameMatch = inp
                 .replace(typeRegex, '')
-                .replace('export', '')
+                .replace(/export|abstract|readonly/g, '')
                 .match(/[a-z0-9_$]+/i)[0];
         }
         if (typeMatch === 'public') {

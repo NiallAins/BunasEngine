@@ -1,4 +1,4 @@
-import { GameObject } from './Core';
+import { GameObject } from './Common';
 import { Matter } from './Matter';
 
 export module Physics {
