@@ -9,6 +9,16 @@
             font-size: 13px;
             line-height: 1.6em;
             padding: 30px;
+            max-width: 960px;
+            margin: 0 auto;
+        }
+
+        a {
+            color: dodgerblue;
+            text-decoration: none
+        }
+        a:hover {
+            text-decoration: underline;
         }
 
         h1 {
@@ -142,8 +152,19 @@
 </head>
 <body>
     <div app>
-        <h1>{{ projectTitle }} <span>Docs</span></h1>
-        <div class="projectDesc"> {{ projectDesc }} </div>
+        <h1>Bunas Engine <span>Docs</span></h1>
+        <div class="projectDesc">
+            Bunas is a HTML5 game engine written in Typescript. The aim of Bunas is to facilitate the development of interactive Typescipt or Javascript applications using HTML5 Canvas.<br/>
+            Below are a list of the modules within this project and the documentaion of their classes, functions and types.
+            <br/><br/>
+            <a href="https://github.com/NiallAins/BunasEngine">
+                View Project on GitHub
+            </a>
+            <br/>
+            <a href="https://github.com/NiallAins/BunasEngine">
+                Download Boilerplate
+            </a>
+        </div>
         <div class="expand">
             <div
                 v-for="(modContent, modLabel, i) in docs"
@@ -258,8 +279,6 @@
         let vm = new Vue({
             el: '[app]',
             data: {
-                projectTitle: 'Bunas Engine',
-                projectDesc: 'Bunas is a HTML5 game engine written in Typescript. The aim of Bunas is to facilitate the development of interactive Typescipt or Javascript applications using HTML5 Canvas.',
                 docs: { inital : 'hello'},
                 secLabels: {
                     d: 'description',

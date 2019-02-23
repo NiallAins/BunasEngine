@@ -50,7 +50,9 @@ gulp.task('default', ['condense', 'compile', 'autoDoc'], function() {
 function tsToJson(inp) {
     let doc = {
         'common' : {
-            d : 'The following functions and classes are in global scope and so can be imported directly.'
+            d : {
+                desc: 'The following functions and classes are in global scope and so can be imported directly.'
+            }
         }
     }
 
