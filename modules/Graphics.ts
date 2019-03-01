@@ -7,11 +7,26 @@ export module Graphics {
     //
     // Types / Interfaces
     //
-    /** */
-    export type keyframe     = number | number[] | number[][] | (number | string)[][];
-    /** */
-    export type keyframeSet  = { [property: string] : keyframe };
-    /** */
+    /** Describes how to animate the properties of a vector sprite.
+		The value associated with each property is converted to a constant value based on what the current frame of the animation loop is.
+		This constant value is then passed to the sprite's draw function to be rendered.
+		The value can be expressed as:
+			A range of values to be reached at equal intervals
+				[10, 5, 30, 5]
+			A range of values to be reached at a specific time during the animation cycle
+				[[0, 10], [0.2, 5], [0.8, 9]]
+			A range of values to be reached with an easing function specified
+				[[0, 30, 'bounceIn'], [1, 20, 'bounceOut']]
+	*/
+    export type keyframeSet  = {
+		[property: string] :
+			number[] |
+			number[][] |
+			(number | string)[][]
+	};
+    /** Function which describes how to draw the sprite.
+		Frame is a keyframe set whoses values have been interpolated to constants for each property
+	*/
     export type drawFunction = (frame: { [property: string] : number }, ctx: CanvasRenderingContext2D)=>void;
     export type spriteState  = {
         duration   : number,
@@ -215,192 +230,192 @@ export module Graphics {
     //
     // Class: Dynamic Vector Sprite
     //
-    export class DynamicVectorSprite implements ISprite {
-        public fr        : number = 0;
-        public duration  : number;
-        public onEnd     : ()=>void = ()=>{};
-        public currentState  : string;
-        public currentAction : string;
-        private state    : spriteState;
-        private action   : spriteState = null;
-        private isPaused : boolean = false;
+    // export class DynamicVectorSprite implements ISprite {
+    //     public fr        : number = 0;
+    //     public duration  : number;
+    //     public onEnd     : ()=>void = ()=>{};
+    //     public currentState  : string;
+    //     public currentAction : string;
+    //     private state    : spriteState;
+    //     private action   : spriteState = null;
+    //     private isPaused : boolean = false;
 
-        constructor(
-            public elements : { [element: string] : drawFunction },
-            public states   : { [state: string]   : spriteState  },
-            public actions  : { [action: string]  : spriteState  }
-        ) {
-            for (let s in states) {
-                states[s].onEnd = states[s].onEnd || (() => {});
-            }
-            for (let a in actions) {
-                actions[a].fr = 0;
-                actions[a].onEnd = actions[a].onEnd || (() => {});
-            }
-            this.currentState = Object.keys(states)[0];
-            this.state = states[this.currentState];
-            this.duration = this.state.duration;
-        };
+    //     constructor(
+    //         public elements : { [element: string] : drawFunction },
+    //         public states   : { [state: string]   : spriteState  },
+    //         public actions  : { [action: string]  : spriteState  }
+    //     ) {
+    //         for (let s in states) {
+    //             states[s].onEnd = states[s].onEnd || (() => {});
+    //         }
+    //         for (let a in actions) {
+    //             actions[a].fr = 0;
+    //             actions[a].onEnd = actions[a].onEnd || (() => {});
+    //         }
+    //         this.currentState = Object.keys(states)[0];
+    //         this.state = states[this.currentState];
+    //         this.duration = this.state.duration;
+    //     };
 
-        public draw(ctx: CanvasRenderingContext2D, x: number, y: number, ang: number = 0) {
-            ctx.save();
-                ctx.translate(x, y);
-                ctx.rotate(ang);
-                for (let el in this.elements) {
-                    let props;
-                    if (this.action && this.action.elements[el]) {
-                        props = tween(this.action.elements[el], this.action.fr);
-                    }
-                    if (this.state.elements[el]) {   
-                        let stateProps = tween(this.state.elements[el], this.fr);
-                        if (!props) {
-                            props = stateProps;
-                        } else {
-                            for (let p in stateProps) {
-                                if (!props[p]) {
-                                    props[p] = stateProps[p];
-                                }
-                            }
-                        }
-                    }
-                    if (props) {
-                        this.elements[el](props, ctx); 
-                    }
-                }
-            ctx.restore();
+    //     public draw(ctx: CanvasRenderingContext2D, x: number, y: number, ang: number = 0) {
+    //         ctx.save();
+    //             ctx.translate(x, y);
+    //             ctx.rotate(ang);
+    //             for (let el in this.elements) {
+    //                 let props;
+    //                 if (this.action && this.action.elements[el]) {
+    //                     props = tween(this.action.elements[el], this.action.fr);
+    //                 }
+    //                 if (this.state.elements[el]) {   
+    //                     let stateProps = tween(this.state.elements[el], this.fr);
+    //                     if (!props) {
+    //                         props = stateProps;
+    //                     } else {
+    //                         for (let p in stateProps) {
+    //                             if (!props[p]) {
+    //                                 props[p] = stateProps[p];
+    //                             }
+    //                         }
+    //                     }
+    //                 }
+    //                 if (props) {
+    //                     this.elements[el](props, ctx); 
+    //                 }
+    //             }
+    //         ctx.restore();
 
-            if (!this.isPaused) {
-                if (this.duration) {
-                    this.fr += (1 / this.duration) * Engine.getDelta();
-                    if (this.fr > 1 || this.fr < 0) {
-                        this.fr = (this.fr + 1) % 1;
-                        this.state.onEnd();
-                        this.onEnd();
-                    }
-                }
-                if (this.action) {
-                    this.action.fr += (1 / this.action.duration) * Engine.getDelta();
-                    if (this.action.fr > 1 || this.action.fr < 0) {
-                        if (this.action.iteration > 1) {
-                            this.action.iteration--;
-                        } else {
-                            if (this.action.iteration === -1) {
-                                this.action.onEnd();
-                            } else {
-                                this.action.onEnd();
-                                this.action = null;
-                                this.currentAction = null;
-                            }
-                        }
-                    }
-                }
-            }
-        };
+    //         if (!this.isPaused) {
+    //             if (this.duration) {
+    //                 this.fr += (1 / this.duration) * Engine.getDelta();
+    //                 if (this.fr > 1 || this.fr < 0) {
+    //                     this.fr = (this.fr + 1) % 1;
+    //                     this.state.onEnd();
+    //                     this.onEnd();
+    //                 }
+    //             }
+    //             if (this.action) {
+    //                 this.action.fr += (1 / this.action.duration) * Engine.getDelta();
+    //                 if (this.action.fr > 1 || this.action.fr < 0) {
+    //                     if (this.action.iteration > 1) {
+    //                         this.action.iteration--;
+    //                     } else {
+    //                         if (this.action.iteration === -1) {
+    //                             this.action.onEnd();
+    //                         } else {
+    //                             this.action.onEnd();
+    //                             this.action = null;
+    //                             this.currentAction = null;
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     };
 
-        /** Sets number of game frames to display sprite animation for */
-        public setDuration(frames: number) {
-            this.duration = frames;
-        }
+    //     /** Sets number of game frames to display sprite animation for */
+    //     public setDuration(frames: number) {
+    //         this.duration = frames;
+    //     }
 
-        public changeState(state: string, setFrame: number = -1, transition: number = 5, ease: string = 'sine'): void {
-            if (this.currentState === state && setFrame === -1) {
-                return;
-            }
-            this.currentState = state;
+    //     public changeState(state: string, setFrame: number = -1, transition: number = 5, ease: string = 'sine'): void {
+    //         if (this.currentState === state && setFrame === -1) {
+    //             return;
+    //         }
+    //         this.currentState = state;
 
-            if (transition) {
-                let nextState = this.states[state],
-                    endFrame;
-                if (nextState.duration) {
-                    endFrame = setFrame === -1 ? (1 + this.fr + (transition / nextState.duration)) % 1 : setFrame;
-                } else {
-                    endFrame = 0;
-                }
-                let transState = {
-                    duration : transition,
-                    onEnd    : this.setState.bind(this, state, endFrame),
-                    elements : {}
-                };
-                for (let el in nextState.elements) {
-                    transState.elements[el] = {};
-                    let startValues = this.state.elements[el] ? tween(this.state.elements[el], this.fr) : false,
-                        endValues   = tween(nextState.elements[el], endFrame);
-                    for (let param in nextState.elements[el]) {
-                        if (!startValues || startValues[param] === undefined) {
-                            transState.elements[el][param] = endValues[param];
-                        } else {
-                            transState.elements[el][param] = [[0, startValues[param], ease], [1, endValues[param], ease]];
-                        }
-                    }
-                }
-                this.state = transState;
-                this.duration = transition;
-                this.fr = 0;
-            } else {
-                this.setState(state, setFrame);
-            }
-        };
+    //         if (transition) {
+    //             let nextState = this.states[state],
+    //                 endFrame;
+    //             if (nextState.duration) {
+    //                 endFrame = setFrame === -1 ? (1 + this.fr + (transition / nextState.duration)) % 1 : setFrame;
+    //             } else {
+    //                 endFrame = 0;
+    //             }
+    //             let transState = {
+    //                 duration : transition,
+    //                 onEnd    : this.setState.bind(this, state, endFrame),
+    //                 elements : {}
+    //             };
+    //             for (let el in nextState.elements) {
+    //                 transState.elements[el] = {};
+    //                 let startValues = this.state.elements[el] ? tween(this.state.elements[el], this.fr) : false,
+    //                     endValues   = tween(nextState.elements[el], endFrame);
+    //                 for (let param in nextState.elements[el]) {
+    //                     if (!startValues || startValues[param] === undefined) {
+    //                         transState.elements[el][param] = endValues[param];
+    //                     } else {
+    //                         transState.elements[el][param] = [[0, startValues[param], ease], [1, endValues[param], ease]];
+    //                     }
+    //                 }
+    //             }
+    //             this.state = transState;
+    //             this.duration = transition;
+    //             this.fr = 0;
+    //         } else {
+    //             this.setState(state, setFrame);
+    //         }
+    //     };
 
-        private setState(state: string, setFrame = -1) {
-            this.state = this.states[state];
-            if (setFrame !== -1) {
-                this.fr = setFrame;
-            }
-            this.duration = this.state.duration;
-        };
+    //     private setState(state: string, setFrame = -1) {
+    //         this.state = this.states[state];
+    //         if (setFrame !== -1) {
+    //             this.fr = setFrame;
+    //         }
+    //         this.duration = this.state.duration;
+    //     };
 
-        public trigger(action: string, iterations: number = 1, transition: number = 10, ease: string = 'sine'): void {
-            if (this.currentAction === action) {
-                return;
-            }
-            this.currentAction = action;
+    //     public trigger(action: string, iterations: number = 1, transition: number = 10, ease: string = 'sine'): void {
+    //         if (this.currentAction === action) {
+    //             return;
+    //         }
+    //         this.currentAction = action;
 
-            if (transition) {
-                let nextAction = this.actions[action];
-                this.action = {
-                    fr        : 0,
-                    iteration : -1,
-                    duration  : transition,
-                    onEnd     : this.setAction.bind(this, action, iterations),
-                    elements  : {}
-                };
-                for (let el in nextAction.elements) {
-                    this.action.elements[el] = {};
-                    let startValues = this.state.elements[el] ? tween(this.state.elements[el], this.fr) : false,
-                        endValues   = tween(nextAction.elements[el], 0);
-                    for (let param in nextAction.elements[el]) {
-                        if (!startValues || startValues[param] === undefined) {
-                            this.action.elements[el][param] = endValues[param];
-                        } else {
-                            this.action.elements[el][param] = [[0, startValues[param], ease], [1, endValues[param], ease]];
-                        }
-                    }
-                }
-            } else {
-                this.setAction(action, iterations)
-            }
-        };
+    //         if (transition) {
+    //             let nextAction = this.actions[action];
+    //             this.action = {
+    //                 fr        : 0,
+    //                 iteration : -1,
+    //                 duration  : transition,
+    //                 onEnd     : this.setAction.bind(this, action, iterations),
+    //                 elements  : {}
+    //             };
+    //             for (let el in nextAction.elements) {
+    //                 this.action.elements[el] = {};
+    //                 let startValues = this.state.elements[el] ? tween(this.state.elements[el], this.fr) : false,
+    //                     endValues   = tween(nextAction.elements[el], 0);
+    //                 for (let param in nextAction.elements[el]) {
+    //                     if (!startValues || startValues[param] === undefined) {
+    //                         this.action.elements[el][param] = endValues[param];
+    //                     } else {
+    //                         this.action.elements[el][param] = [[0, startValues[param], ease], [1, endValues[param], ease]];
+    //                     }
+    //                 }
+    //             }
+    //         } else {
+    //             this.setAction(action, iterations)
+    //         }
+    //     };
 
-        private setAction(action, iterations) {
-            this.action = this.actions[action];
-            this.action.iteration = iterations;
-            this.action.fr = 0;
-        };
+    //     private setAction(action, iterations) {
+    //         this.action = this.actions[action];
+    //         this.action.iteration = iterations;
+    //         this.action.fr = 0;
+    //     };
 
-        public toggle(play: boolean = null, setFrame?: number, setActionFrame?: number) {
-            this.isPaused = play === null ? !this.isPaused : !play;
-            if (setFrame || setFrame === 0) {
-                this.state.fr = setFrame;
-            }
-            if ((setActionFrame || setActionFrame === 0) && this.action) {
-                this.action.fr = setActionFrame;
-            }
-        };
+    //     public toggle(play: boolean = null, setFrame?: number, setActionFrame?: number) {
+    //         this.isPaused = play === null ? !this.isPaused : !play;
+    //         if (setFrame || setFrame === 0) {
+    //             this.state.fr = setFrame;
+    //         }
+    //         if ((setActionFrame || setActionFrame === 0) && this.action) {
+    //             this.action.fr = setActionFrame;
+    //         }
+    //     };
 
-        public reverse() {
-            this.duration *= -1;
-        };
-    };
+    //     public reverse() {
+    //         this.duration *= -1;
+    //     };
+    // };
 
     /** Class to create a particle emitter */
     export class Emitter extends GameObject {
@@ -414,6 +429,7 @@ export module Graphics {
         private _power      : number[] = [1, 1];
         private _rate       : number[] = [10, 10];
 
+		/** Angle, Power and Rate can be given as a constant or as a range to randomly choose from */
         constructor(
 			public x      : number,
 			public y      : number,
