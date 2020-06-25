@@ -16,5 +16,3 @@ Light module
 autodoc - multirow object variables
 autodoc - set, get support
 autodoc - extract public variables from constructor
-
-

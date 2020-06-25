@@ -151,7 +151,7 @@ class Block extends Matter.Rect {
 					true
 				))
 			);
-			this.die();
+			this.delete();
 		}
 	}
 }
@@ -199,7 +199,7 @@ class Bullet extends GameObject {
 		if (c && c['hit']) {
 			c['hit'](p, this.velocity);
 			clearTimeout(this.lifeSpan);
-			this.die();
+			this.delete();
 		}
 	}
 }

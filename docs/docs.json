@@ -6,17 +6,21 @@
 		"c": {
 			"GameObject": {
 				"d": {
-					"desc": "    Base class from which all other game objects will inherit\r\n",
+					"desc": "  Base class from which all other game objects will inherit\r\n",
 					"snip": "import { GameObject } from './Bunas';"
 				},
 				"m": {
 					"Class Constructor": {
-						"desc": "        All game objects will sorted by z to determine draw/step order.\r\n        If clipRadius > 0, draw/step will only be called if object is within clipRadius pixels of an active World.View port.\r\n    ",
-						"snip": "constructor(\n    public x : number,\n    public y : number,\n    public z : number = 0,\n    public clipRadius : number = 0\n) "
+						"desc": "\t\tz value determines order of draw/step events relative to other objects\r\n\t\tcolBox is used in collision detection and checking if object is in view\r\n\t",
+						"snip": "constructor(\n    public x: number,\n    public y: number,\n    private _z: number = 0,\n    colWidth: number | {x?: number, y?: number, width: number, height?: number} = 0,\n    clipWidth: number | {x?: number, y?: number, width: number, height?: number} = -1\n) "
 					},
 					"step": {
 						"desc": " Called on each Engine step event ",
 						"snip": "public step      (delta: number): void "
+					},
+					"setShadowMask": {
+						"desc": " Set a polygon mask to be used when casting shadows from a light source ",
+						"snip": "public setShadowMask(poly: {x: number, y: number}[] | Graphics.Sprite) "
 					}
 				},
 				"v": {
@@ -24,13 +28,25 @@
 						"desc": " Current area object is in ",
 						"snip": "public area: World.Area"
 					},
+					"inView": {
+						"desc": " Is the object currently on screen (set before step events are called) ",
+						"snip": "public inView: boolean = true"
+					},
 					"startStep": {
 						"desc": " Called at start of each Engine step event ",
 						"snip": "public startStep?(delta: number): void;\n/** Called at end of each Engine step event */\npublic endStep?  (delta: number): void;\n/** Called on each Engine draw event */\npublic draw      (ctx: CanvasRenderingContext2D, delta: number): void {}"
 					},
 					"startDraw": {
 						"desc": " Called at start of each Engine draw event ",
-						"snip": "public startDraw?(ctx: CanvasRenderingContext2D, delta: number): void;\n/** Called at end of each Engine draw event */\npublic endDraw?  (ctx: CanvasRenderingContext2D, delta: number): void;\n/** Called on object mouseover if Input.setMouseListener() has been set */\npublic onMouseOver?(m: Input.Mouse): void;\n/* Removes instance from game */\npublic die(): void {\n    this.area.removeObject(this);\n}"
+						"snip": "public startDraw?(ctx: CanvasRenderingContext2D, delta: number): void;\n/** Called at end of each Engine draw event */\npublic endDraw?  (ctx: CanvasRenderingContext2D, delta: number): void;\n/** Called on object mouseover if Input.setMouseListener() has been set */\npublic onMouseOver?(m: Input.Mouse): void;\n/**\nReturns instances in objects with overlapping clip boxes\nWhen onlyInView is true, search is limited to only objects within current view\n*/\npublic getCollisions(objects: GameObject[], onlyInView: boolean = false): GameObject[] {\n    return objects.filter(o => (\n            (!onlyInView || o.inView) &&\n            o.x + o.colBox.x < this.x + this.colBox.x + this.colBox.width &&\n            o.x + o.colBox.x + o.colBox.width > this.x + this.colBox.x &&\n            o.y + o.colBox.y < this.y + this.colBox.y + this.colBox.height &&\n            o.y + o.colBox.y + o.colBox.height > this.y + this.colBox.y\n        ));\n}"
+					},
+					"x": {
+						"desc": "",
+						"snip": "public x: number"
+					},
+					"y": {
+						"desc": "",
+						"snip": "public y: number"
 					}
 				}
 			}
@@ -61,8 +77,8 @@
 				"snip": "function toggle(state?): void "
 			},
 			"log": {
-				"desc": "        Log a variable to the debugger.\r\n        Objects will be stringifyed.\r\n        If logging a variable on every step, set persist = false to continually clear previous output.\r\n    ",
-				"snip": "function log(data: any, persist = true): void "
+				"desc": "\t\tLog a variable to the debugger.\r\n\t\tObjects will be stringifyed.\r\n\t\tIf logging a variable on every step, set persist = false to continually clear previous output.\r\n\t",
+				"snip": "function log(data: any, persist = false): void "
 			},
 			"clear": {
 				"desc": " Clear debugger output ",
@@ -78,37 +94,37 @@
 		"t": {
 			"AssetRouteList": {
 				"desc": " List of assets names with relative file path ",
-				"snip": "type AssetRouteList = {\n    sprites? : { [name : string] : string };\n    sounds?  : { [name : string] : string };\n    bgs?     : { [name : string] : string };\n}"
+				"snip": "type AssetRouteList = {\n    sprites? : { [name: string]: string };\n    sounds?  : { [name: string]: string };\n    bgs?     : { [name: string]: string };\n}"
 			},
 			"AssetList": {
 				"desc": " List of assets names with loaded asset object, generated from an AssetRouteList ",
-				"snip": "type AssetList = {\n    sprites? : { [name : string] : HTMLImageElement };\n    sounds?  : { [name : string] : HTMLAudioElement };\n    bgs?     : { [name : string] : HTMLImageElement };\n}"
+				"snip": "type AssetList = {\n    sprites? : { [name: string]: HTMLImageElement };\n    sounds?  : { [name: string]: HTMLAudioElement };\n    bgs?     : { [name: string]: HTMLImageElement };\n}"
 			}
 		},
 		"v": {
 			"preStep": {
 				"desc": " Lifecycle hook; called before each engine step event ",
-				"snip": "let preStep  : ()=>void = ()=>{}"
+				"snip": "let preStep: (number)=>void = ()=>{}"
 			},
 			"postStep": {
 				"desc": " Lifecycle hook; called after each engine step event ",
-				"snip": "let postStep : ()=>void = ()=>{}"
+				"snip": "let postStep: (number)=>void = ()=>{}"
 			},
 			"preDraw": {
 				"desc": " Lifecycle hook; called before each engine draw event ",
-				"snip": "let preDraw  : ()=>void = ()=>{}"
+				"snip": "let preDraw: (CanvasRenderingContext2D, number)=>void = () => {}"
 			},
 			"postDraw": {
 				"desc": " Lifecycle hook; called after each engine draw event ",
-				"snip": "let postDraw : ()=>void = ()=>{}"
+				"snip": "let postDraw: (CanvasRenderingContext2D, number)=>void = () => {}"
 			},
 			"cW": {
 				"desc": " Target canvas element width ",
-				"snip": "let cW : number"
+				"snip": "let cW: number"
 			},
 			"cH": {
 				"desc": " Target canvas element height ",
-				"snip": "let cH : number"
+				"snip": "let cH: number"
 			}
 		},
 		"f": {
@@ -120,20 +136,28 @@
 				"desc": " Returns reference to target canvas HTML element  ",
 				"snip": "function getCanvasEl(): HTMLCanvasElement "
 			},
-			"getAssets": {
-				"desc": " Returns list of all current assets ",
-				"snip": "function getAssets(): AssetList "
+			"getCanvasContext": {
+				"desc": " Returns context of target canvas ",
+				"snip": "function getCanvasContext(): CanvasRenderingContext2D "
 			},
-			"setTargetFPS": {
-				"desc": " Set the target FPS from the default of 30 FPS ",
-				"snip": "function setTargetFPS(newFPS): void "
+			"getSprite": {
+				"desc": " Return preloaded sprite asset ",
+				"snip": "function getSprite(name: string, isCheck: boolean = false): HTMLImageElement "
+			},
+			"getBackground": {
+				"desc": " Return preloaded background asset ",
+				"snip": "function getBackground(name: string, isCheck: boolean = false): HTMLImageElement "
+			},
+			"getSound": {
+				"desc": " Return preloaded sound asset ",
+				"snip": "function getSound(name: string, isCheck: boolean = false): HTMLAudioElement "
 			},
 			"init": {
-				"desc": "        Initalises engine and begins application.\r\n        An external callback function must be provided as an entry point to your code; called once initalistion has complete.\r\n        The target canvas may be provided as an element or id of an element. Otherwise the first canvas element found will be used, or one will be created.\r\n    ",
+				"desc": "\t\tInitalises engine and begins application.\r\n\t\tAn external callback function must be provided as an entry point to your code; called once initalistion has complete.\r\n\t\tThe target canvas may be provided as an element or id of an element. Otherwise the first canvas element found will be used, or one will be created.\r\n\t",
 				"snip": "function init(\n    externalCallback: Function,\n    canEl? : string | HTMLElement, \n    canWidth? : number,\n    canHeight? : number\n): void "
 			},
 			"preLoad": {
-				"desc": " \r\n        Loads image and sound assets from provided list of routes before application is initalised\r\n        Optional drawing function allows creation of custom loading bar\r\n    ",
+				"desc": " \r\n\t\tLoads image and sound assets from provided list of routes before application is initalised\r\n\t\tOptional drawing function allows creation of custom loading bar\r\n\t",
 				"snip": "function preLoad(\n    assets            : AssetRouteList,\n    loadingDrawFunc?  : (ctx: CanvasRenderingContext2D, fractionLoaded: number)=>void\n) "
 			}
 		}
@@ -144,54 +168,80 @@
 			"snip": "import { Graphics } from './Bunas';"
 		},
 		"t": {
-			"keyframe": {
-				"desc": " ",
-				"snip": "type keyframe     = number | number[] | number[][] | (number | string)[][];\n/** */\nexport type keyframeSet  = { [property: string] : keyframe }"
+			"keyframeSet": {
+				"desc": " Describes how to animate the properties of a vector sprite.\r\n\t\t\tThe value associated with each property is converted to a constant value based on what the current frame of the animation loop is.\r\n\t\t\tThis constant value is then passed to the sprite's draw function to be rendered.\r\n\t\t\tThe value can be expressed as:\r\n\t\t\t\tA range of values to be reached at equal intervals\r\n\t\t\t\t\t[10, 5, 30, 5]\r\n\t\t\t\tA range of values to be reached at a specific time during the animation cycle\r\n\t\t\t\t\t[[0, 10], [0.2, 5], [0.8, 9]]\r\n\t\t\t\tA range of values to be reached with an easing function specified\r\n\t\t\t\t\t[[0, 30, 'bounceIn'], [1, 20, 'bounceOut']]\r\n\t",
+				"snip": "type keyframeSet  = {\n    [property: string] :\n    number[] |\n    number[][] |\n    (number | string)[][]\n}"
 			},
 			"drawFunction": {
-				"desc": " ",
+				"desc": " Function which describes how to draw the sprite.\r\n\t\t\tFrame is a keyframe set whoses values have been interpolated to constants for each property\r\n\t",
 				"snip": "type drawFunction = (frame: { [property: string] : number }, ctx: CanvasRenderingContext2D)=>void;\nexport type spriteState  = {\n    duration   : number,\n    elements   : { [element: string] : keyframeSet },\n    fr?        : number,\n    iteration? : number,\n    easeIn?    : string,\n    easeOut?   : string,\n    onEnd?     : ()=>void\n}"
 			},
-			"ISprite": {
+			"Sprite": {
 				"desc": " Base interface implemented by all sprites, both vector and bitmap ",
-				"snip": "interface ISprite {\n    setDuration: (frames: number, perFrame?: boolean)=>void;\n    draw: (ctx: CanvasRenderingContext2D, x: number, y: number, ang: number)=>void;\n    toggle: (play: boolean, setFrame: number)=>void;\n    reverse: ()=>void;\n    onEnd: ()=>void;\n}"
+				"snip": "interface Sprite {\n    setDuration: (frames: number, perFrame?: boolean)=>void;\n    draw: (ctx: CanvasRenderingContext2D, x: number, y: number, ang?: number)=>void;\n    toggle: (play: boolean, setFrame: number)=>void;\n    reverse: ()=>void;\n    onEnd: ()=>void;\n}"
 			}
 		},
-		"v": {
-			"sprites": {
-				"desc": " List of preloaded sprite assets ",
-				"snip": "let sprites: { [name: string] : HTMLImageElement }"
+		"f": {
+			"setImageSmoothing": {
+				"desc": "\t\tTurn on/off image smoothing (antialiasing)\r\n\t\tThis is turned off by default\r\n\t",
+				"snip": "function setImageSmoothing(on: boolean) "
 			},
-			"bgs": {
-				"desc": " List of preloaded background assets ",
-				"snip": "let bgs: { [name: string] : HTMLImageElement }"
+			"setDuration": {
+				"desc": " Sets number of game frames to display sprite animation for ",
+				"snip": "//     public setDuration(frames: number) "
 			}
 		},
 		"c": {
-			"Sprite": {
+			"TileSet": {
 				"d": {
-					"desc": " Class for a bitmap sprite ",
-					"snip": "import { Sprite } from './Bunas';"
+					"desc": " Class for a bitmap tileset, a single image containing several individual static tiles ",
+					"snip": "import { TileSet } from './Bunas';"
 				},
 				"m": {
 					"Class Constructor": {
-						"desc": "            Sprite can be provided as an Image element or the name of a preloaded asset.\r\n            Animated sprites must take the form of an unpadded horizontal sprite sheet.\r\n            frTotal is the number of frames in the sprite sheet.\r\n            duration is the number of game frame animation will last; may be a fraction.\r\n        ",
+						"desc": "\t\t\tTileset can be provided as an Image element or the name of a preloaded asset.\r\n\t\t\tIf no tile height is given, it is assumed the tileset is one tile high\r\n\t\t",
+						"snip": "constructor(\n    tileImage: string | HTMLImageElement,\n    tileWidth: number,\n    tileHeight?: number\n) "
+					},
+					"draw": {
+						"desc": " Draw the tile to the canvas at the point { canX, canY }. ",
+						"snip": "public draw(\n    ctx: CanvasRenderingContext2D,\n    canX: number,\n    canY: number,\n    tileNum: number\n): void "
+					}
+				},
+				"v": {
+					"width": {
+						"desc": " Width of a single Tile ",
+						"snip": "public width: number"
+					},
+					"height": {
+						"desc": " Height of a single Tile ",
+						"snip": "public height: number"
+					}
+				}
+			},
+			"SpriteSheet": {
+				"d": {
+					"desc": " Class for a bitmap sprite ",
+					"snip": "import { SpriteSheet } from './Bunas';"
+				},
+				"m": {
+					"Class Constructor": {
+						"desc": "\t\t\t\t\tSprite can be provided as an Image element or the name of a preloaded asset.\r\n\t\t\t\t\tAnimated sprites must take the form of an unpadded horizontal sprite sheet.\r\n\t\t\t\t\tfrTotal is the number of frames in the sprite sheet.\r\n\t\t\t\t\tduration is the number of game frame animation will last; may be a fraction.\r\n\t\t\t",
 						"snip": "constructor(\n    sprite  : string | HTMLImageElement,\n    private frTotal: number = 1,\n    duration: number = 0\n) "
 					},
 					"draw": {
-						"desc": " Draw the sprite to the canvas at the point { canX, canY }.\r\n            Ang may be provided to rotate the sprite by the given angle.\r\n        ",
-						"snip": "public draw(ctx: CanvasRenderingContext2D, canX: number, canY: number, ang: number = 0): void "
+						"desc": "\t\t\t\tDraw the sprite to the canvas at the point { canX, canY }.\r\n\t\t\t\tang may be provided to rotate the sprite by the given angle.\r\n\t\t\t\tscale can be a single number to scale x and y equally, or an array of [xScale, yScale];\r\n\t\t\t",
+						"snip": "public draw(\n    ctx: CanvasRenderingContext2D,\n    canX: number,\n    canY: number,\n    ang: number = 0,\n    scale: number | number[] = [1, 1]\n): void "
 					},
 					"setDuration": {
-						"desc": " Sets number of game frames animation will last for\r\n            If perFrame, sets number of game frames a single frame of sprite sheet will last for\r\n        ",
+						"desc": " Sets number of game frames animation will last for\r\n\t\t\t\t\tIf perFrame, sets number of game frames a single frame of sprite sheet will last for\r\n\t\t\t",
 						"snip": "public setDuration(frames: number, perFrame: boolean = false) "
 					},
 					"toggle": {
-						"desc": " Play/pause animation.\r\n            Will toggle to opposite of current state if play is not provided.\r\n        ",
+						"desc": " Play/pause animation.\r\n\t\t\t\t\tWill toggle to opposite of current state if play is not provided.\r\n\t\t\t",
 						"snip": "public toggle(play?: boolean) "
 					},
 					"reverse": {
-						"desc": " Reverse direction of animation.\r\n            Will toggle to opposite of current direction if runBackwards is not provided.\r\n        ",
+						"desc": " Reverse direction of animation.\r\n\t\t\t\t\tWill toggle to opposite of current direction if runBackwards is not provided.\r\n\t\t\t",
 						"snip": "public reverse(runBackwards?:boolean) "
 					}
 				},
@@ -217,11 +267,11 @@
 				},
 				"m": {
 					"Class Constructor": {
-						"desc": " Sprite is provided as a draw function with a series of canvas draw commands\r\n            keyFrameSet contains a list of keyframes whose variables will be interpolated based on the current frame before being provided to the draw function\r\n            duration is the number of game frame animation will last; may be a fraction.\r\n        ",
+						"desc": " Sprite is provided as a draw function with a series of canvas draw commands\r\n\t\t\t\t\tkeyFrameSet contains a list of keyframes whose variables will be interpolated based on the current frame before being provided to the draw function\r\n\t\t\t\t\tduration is the number of game frame animation will last; may be a fraction.\r\n\t\t\t",
 						"snip": "constructor(\n    public drawFunction: drawFunction,\n    public keyframeSet: keyframeSet = null,\n    public duration: number = 30\n) "
 					},
 					"draw": {
-						"desc": " Draw the sprite to the canvas at the point { canX, canY }.\r\n            Ang may be provided to rotate the sprite by the given angle.\r\n        ",
+						"desc": " Draw the sprite to the canvas at the point { canX, canY }.\r\n\t\t\t\t\tAng may be provided to rotate the sprite by the given angle.\r\n\t\t\t",
 						"snip": "public draw(ctx: CanvasRenderingContext2D, x: number, y: number, ang: number = 0) "
 					},
 					"setDuration": {
@@ -229,11 +279,11 @@
 						"snip": "public setDuration(frames: number) "
 					},
 					"toggle": {
-						"desc": " Play/pause animation.\r\n            Will toggle to opposite of current state if play is not provided.\r\n        ",
+						"desc": " Play/pause animation.\r\n\t\t\t\t\tWill toggle to opposite of current state if play is not provided.\r\n\t\t\t",
 						"snip": "public toggle(play?: boolean ) "
 					},
 					"reverse": {
-						"desc": " Reverse direction of animation.\r\n            Will toggle to opposite of current direction if runBackwards is not provided.\r\n        ",
+						"desc": " Reverse direction of animation.\r\n\t\t\t\t\tWill toggle to opposite of current direction if runBackwards is not provided.\r\n\t\t\t",
 						"snip": "public reverse(runBackwards?:boolean) "
 					}
 				},
@@ -241,6 +291,18 @@
 					"onEnd": {
 						"desc": " Animation lifecycle hook to run after animation completes a loop ",
 						"snip": "public onEnd     : () => void = () => {}"
+					},
+					"drawFunction": {
+						"desc": "",
+						"snip": "public drawFunction: drawFunction"
+					},
+					"keyframeSet": {
+						"desc": "",
+						"snip": "public keyframeSet: keyframeSet = null"
+					},
+					"duration": {
+						"desc": "",
+						"snip": "public duration: number = 30"
 					}
 				}
 			},
@@ -251,16 +313,20 @@
 				},
 				"m": {
 					"Class Constructor": {
+						"desc": " Angle, Power and Rate can be given as a constant or as a range to randomly choose from ",
+						"snip": "constructor(\n    public x      : number,\n    public y      : number,\n    ang?   : number | number[],\n    power? : number | number[],\n    rate?  : number | number[],\n) "
+					}
+				},
+				"v": {
+					"x": {
 						"desc": "",
-						"snip": "constructor(\r\n\t\t\tpublic x      : number,\r\n\t\t\tpublic y      : number,\r\n\t\t    ang?   : number | number[],\r\n\t\t    power? : number | number[],\r\n\t\t    rate?  : number | number[],\r\n\t\t) {"
+						"snip": "public x      : number"
+					},
+					"y": {
+						"desc": "",
+						"snip": "public y      : number"
 					}
 				}
-			}
-		},
-		"f": {
-			"setDuration": {
-				"desc": " Sets number of game frames to display sprite animation for ",
-				"snip": "public setDuration(frames: number) "
 			}
 		}
 	},
@@ -270,21 +336,17 @@
 			"snip": "import { Input } from './Bunas';"
 		},
 		"t": {
-			"Point": {
-				"desc": " Private: to store cursor position ",
-				"snip": "type Point = {\n    x : number;\n    y : number;\n}"
-			},
 			"KeyBoard": {
 				"desc": " Private: Describes state of keyboard input ",
 				"snip": "interface KeyBoard {\n    down    : string;\n    up      : string;\n    pressed : string[];\n}"
 			},
 			"MouseButton": {
 				"desc": " Private: Describes single mouse button state ",
-				"snip": "interface MouseButton {\n    down       : boolean;\n    up         : boolean;\n    doubleUp   : boolean;\n    pressed    : boolean;\n    drag       : boolean;\n    startDrag  : boolean;\n    endDrag    : boolean;\n    dragging   : boolean;\n    dragPts    : Point[];\n}"
+				"snip": "interface MouseButton {\n    down       : boolean;\n    up         : boolean;\n    doubleUp   : boolean;\n    pressed    : boolean;\n    drag       : boolean;\n    startDrag  : boolean;\n    endDrag    : boolean;\n    dragging   : boolean;\n    dragPts    : {x: number, y: number}[];\n}"
 			},
 			"Mouse": {
 				"desc": " Describes current state of mouse input ",
-				"snip": "interface Mouse extends Point {\n    left  : MouseButton;\n    right : MouseButton;\n}"
+				"snip": "interface Mouse {\n    x: number,\n    y: number,\n    left  : MouseButton;\n    right : MouseButton;\n}"
 			}
 		},
 		"v": {
@@ -293,7 +355,7 @@
 				"snip": "let mouse: Mouse = {\n    x:    0,\n    y:    0,\n    left: {\n        down       : false,\n        up         : false,\n        doubleUp   : false,\n        pressed    : false,\n        drag       : false,\n        startDrag  : false,\n        endDrag    : false,\n        dragging   : false,\n        dragPts    : []\n    },\n    right: {\n        down       : false,\n        up         : false,\n        doubleUp   : false,\n        pressed    : false,\n        drag       : false,\n        startDrag  : false,\n        endDrag    : false,\n        dragging   : false,\n        dragPts    : []\n    }\n}"
 			},
 			"key": {
-				"desc": "            Current state of keyboard input\r\n            Pressed stores names of all keys currently pressed\r\n        ",
+				"desc": "\t\t\tCurrent state of keyboard input\r\n\t\t\tPressed stores names of all keys currently pressed\r\n\t\t",
 				"snip": "let key: KeyBoard = {\n    up      : null,\n    down    : null,\n    pressed : []\n}"
 			}
 		},
@@ -302,29 +364,215 @@
 				"desc": " Sets number of pixels cursor must move while pressed before drag event is triggered ",
 				"snip": "function setDragTolerance(tolerance: number): void "
 			},
-			"setdoubleClickWait": {
+			"setDoubleClickWait": {
 				"desc": " Sets maximum milliseconds between clicks in a double click in order for event to be trigged ",
-				"snip": "function setdoubleClickWait(v: number): void "
+				"snip": "function setDoubleClickWait(v: number): void "
 			},
 			"toggleContextMenu": {
-				"desc": "        Enable/Disable browser context menu on right click\r\n        Disabled by default\r\n     ",
+				"desc": "\t\tEnable/Disable browser context menu on right click\r\n\t\tDisabled by default\r\n\t ",
 				"snip": "function toggleContextMenu(show: boolean = true): void "
 			},
-			"checkKey": {
+			"isPressed": {
 				"desc": " Returns true is any of the key names provided are currently pressed  ",
-				"snip": "function checkKey(...keys: string[]): boolean | object "
+				"snip": "function isPressed(...keys: string[]): boolean | object "
+			},
+			"mouseInArea": {
+				"desc": " Gets position of mouse within the current view of an area ",
+				"snip": "function mouseInArea(a?: World.Area): "
 			},
 			"setCursor": {
-				"desc": "        Sets cursor type if CSS cursor name is provided\r\n        Sets a custom cursor to be rendered if draw function is provided\r\n    ",
-				"snip": "function setCursor(cursor: (ctx: CanvasRenderingContext2D, delta: number)=>void | string): void "
+				"desc": "\t\tSets cursor type if CSS cursor name is provided\r\n\t\tSets a custom cursor to be rendered if draw function is provided\r\n\t",
+				"snip": "function setCursor(cursor: ((ctx: CanvasRenderingContext2D, delta: number)=>void) | string): void "
 			},
 			"setMouseListener": {
-				"desc": "        Registers game object with relative hit box in which to listener for mouseover events\r\n        If circular, hit box will be a circle\r\n        If centered, box will be centered on object.x, object.y; otherwise, will be aligned with top left\r\n    ",
-				"snip": "function setMouseListener(g: GameObject, width: number, height: number, circular: boolean = false, centered: boolean = false) "
+				"desc": "\t\tRegisters game object with relative hit box in which to listener for mouseover events\r\n\t\tIf circular, hit box will be a circle\r\n\t\tIf centered, box will be centered on object.x, object.y; otherwise, will be aligned with top left\r\n\t",
+				"snip": "function setMouseListener(\n    g: GameObject,\n    width: number,\n    height: number,\n    circular: boolean = false,\n    centered: boolean = false\n): void "
 			},
 			"setMouseListenerFromSprite": {
 				"desc": " Calls setMouseListener with width and height of provided sprite ",
-				"snip": "function setMouseListenerFromSprite(g: GameObject, sprite: Graphics.Sprite, centered: boolean = false) "
+				"snip": "function setMouseListenerFromSprite(\n    g: GameObject,\n    sprite: Graphics.SpriteSheet,\n    centered: boolean = false\n): void "
+			}
+		}
+	},
+	"Light": {
+		"d": {
+			"desc": " This module creates lighting effects including shadow casting, background lighting and coloured lighting ",
+			"snip": "import { Light } from './Bunas';"
+		},
+		"c": {
+			"LightArea": {
+				"d": {
+					"desc": " Light settings for an Area ",
+					"snip": "import { LightArea } from './Bunas';"
+				},
+				"m": {
+					"addSource": {
+						"desc": " ",
+						"snip": "public addSource(source: Source | Source[]) "
+					},
+					"addBlock": {
+						"desc": " ",
+						"snip": "public addBlock(block: Block | Block[]) "
+					},
+					"Class Constructor": {
+						"desc": "",
+						"snip": "constructor(\r\n\t\t\tpublic area: World.Area,\r\n\t\t\tbgLight: string | CanvasGradient = '#000'\r\n\t\t) {"
+					}
+				},
+				"v": {
+					"area": {
+						"desc": "",
+						"snip": "public area: World.Area"
+					}
+				}
+			},
+			"Source": {
+				"d": {
+					"desc": " Light emitting object ",
+					"snip": "import { Source } from './Bunas';"
+				},
+				"m": {
+					"Class Constructor": {
+						"desc": "\t\t  rad is the radius of the light circle cast.\r\n\t\t\tcolor is a hex value, defaults set to #fff (white)\r\n\t\t\tIf castShadows is false, light will not be affected by blockers\r\n\t\t\tarc is the angle in radians of the light circle cast. Default is 2PI, a full circle.\r\n\t\t\tIf arc is not a full circle, edgeBlue defines the blur of the arc edges.\r\n\t\t ",
+						"snip": "constructor(\n    public x: number,\n    public y: number, \n    rad: number,\n    color: string = '#fff',\n    public castShadows: boolean = true,\n    arc: number = 6.2832,\n    edgeBlur: number = 0\n) "
+					},
+					"delete": {
+						"desc": " ",
+						"snip": "public delete() "
+					}
+				},
+				"v": {
+					"active": {
+						"desc": " Direction light is pointing; only matters if light arc is set ",
+						"snip": "public active: boolean = true"
+					},
+					"x": {
+						"desc": "",
+						"snip": "public x: number"
+					},
+					"y": {
+						"desc": "",
+						"snip": "public y: number, "
+					},
+					"castShadows": {
+						"desc": "",
+						"snip": "public castShadows: boolean = true"
+					}
+				}
+			},
+			"Block": {
+				"d": {
+					"desc": " Light blocking / shadow casting object ",
+					"snip": "import { Block } from './Bunas';"
+				},
+				"m": {
+					"Class Constructor": {
+						"desc": "\t\t \tMask is the polygon which blocks light\r\n\t\t\t  - If mask is a polygon, it is given as an array of points which define the shape\r\n\t\t\t  - If mask is a rectangle, it can be given as an object of {width, height}\r\n\t\t\t  - If mask is a circle, it is given as a number of the circle's radius length\r\n\t\t\tspriteMask is an optional sprite shape which will be removed from the shadow in addition to the mask\r\n\t\t\t  - spriteMask allows a block to be made for a complex spirte shape but using a simple underlying polygon mask to improve render time\r\n\t\t\tblockLightInside, if true, blocks all light from a light source if it is within the bounds of the block\r\n\t\t\ttranslucent color is the colour light passing through the blocker will turn if it is not fully opaque\r\n\t\t ",
+						"snip": "constructor(\n    public x: number,\n    public y: number,\n    mask: {x: number, y: number}[] | {width: number, height: number} | number,\n    spriteMask?: HTMLImageElement | ((ctx: CanvasRenderingContext2D)=>void),\n    public blockLightInside: boolean = false,\n    public translucentColor = '#000'\n) "
+					},
+					"delete": {
+						"desc": " ",
+						"snip": "public delete() "
+					}
+				},
+				"v": {
+					"x": {
+						"desc": "",
+						"snip": "public x: number"
+					},
+					"y": {
+						"desc": "",
+						"snip": "public y: number"
+					},
+					"blockLightInside": {
+						"desc": "",
+						"snip": "public blockLightInside: boolean = false"
+					},
+					"translucentColor": {
+						"desc": "",
+						"snip": "public translucentColor = '#000'"
+					}
+				}
+			}
+		}
+	},
+	"World": {
+		"d": {
+			"desc": "\tContains classes which allow\r\n\t\t- Creation of seperate game areas\r\n\t\t- Area level design\r\n\t\t- Viewport control\r\n",
+			"snip": "import { World } from './Bunas';"
+		},
+		"c": {
+			"Area": {
+				"d": {
+					"desc": " Class for creating a game area ",
+					"snip": "import { Area } from './Bunas';"
+				},
+				"m": {
+					"Class Constructor": {
+						"desc": "\t\t\t\tIf persist is true, objects in area will persists after close(), until open() is called again.\r\n\t\t\t\tIf persist is false, all object will be deleted on close, and recreated again on open()\r\n\t\t\t\tzIndex sets the order in which this Area is drawn if multiple areas are open at once\r\n\t\t\t\tonInit, onOpen, onClose are custom functions to call \r\n\t\t\t\tonInit is called when a persistent Area is opened for the first time\r\n\t\t\t",
+						"snip": "constructor(\n    private name\t\t\t: string,\n    private persist   : boolean = false,\n    zIndex\t\t\t\t\t\t:\tnumber = 0,\n    public onInit     : ()=>void = ()=>{},\n    public onOpen     : ()=>void = ()=>{},\n    public onClose    : ()=>void = ()=>{},\n) "
+					},
+					"addBackground": {
+						"desc": "\t\t\t\tSets the background of area\r\n\t\t\t\tAsset can be the name of background asset, or the string value of a color\r\n\t\t\t",
+						"snip": "public addBackground(\n    asset: string,\n    isForeGround: boolean = false,\n    zIndex: number = 0,\n    parralax: number | {x: number, y: number} = 1,\n    offset: number | {x: number, y: number} = 0,\n    repeat: boolean | {x: boolean, y: boolean} = true,\n    customName?: string\n): background "
+					},
+					"open": {
+						"desc": " ",
+						"snip": "public open(): void "
+					},
+					"close": {
+						"desc": " ",
+						"snip": "public close() "
+					},
+					"delete": {
+						"desc": " ",
+						"snip": "public delete(): void "
+					},
+					"remove": {
+						"desc": " Remove an object from the Area ",
+						"snip": "public remove(o: GameObject): void "
+					},
+					"togglePersistance": {
+						"desc": " If persist is not provided, value is set to oppsite of its current value ",
+						"snip": "public togglePersistance(persist?: boolean) "
+					},
+					"toggleLight": {
+						"desc": " Use Light engine in this Area ",
+						"snip": "public toggleLight(on?: boolean): void "
+					}
+				},
+				"v": {
+					"view": {
+						"desc": " View assigned to this Area ",
+						"snip": "public view: View"
+					},
+					"light": {
+						"desc": " Light.LightArea assigned to this area if using lighting ",
+						"snip": "public light: Light.LightArea"
+					},
+					"onInit": {
+						"desc": "",
+						"snip": "public onInit     : ()=>void = ()=>{}"
+					},
+					"onOpen": {
+						"desc": "",
+						"snip": "public onOpen     : ()=>void = ()=>{}"
+					},
+					"onClose": {
+						"desc": "",
+						"snip": "public onClose    : ()=>void = ()=>{}"
+					}
+				}
+			}
+		},
+		"f": {
+			"track": {
+				"desc": "\t\t\tSet the view to keep an Game Object in frame\r\n\t\t\tpadding is the distance the object must be from the edge of the view before the view is moved\r\n\t\t\tIf padding is a number it is applied equally for all edges, if an array it is applied as [top, left, bottom, right]\r\n\t\t\ttrackSpeed is how quickly the view catchs up with the object\r\n\t\t",
+				"snip": "public track(\n    object\t\t\t: GameObject,\n    padding\t\t\t: number | number[] = 0,\n    trackSpeed\t: number = 0,\n    bound?\t\t\t: number[]\n) "
+			},
+			"toggleTracking": {
+				"desc": "\t\t\tTemporarily turn object tracking on or off\r\n\t\t\tIf turnOn is not provided, value is set to oppsite of its current value\r\n\t\t",
+				"snip": "public toggleTracking(turnOn?: boolean) "
 			}
 		}
 	}

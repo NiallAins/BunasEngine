@@ -1,171 +1,264 @@
 import { World } from './World';
 import { Input } from './Input';
+import { Graphics } from './Graphics';
 
 //
-//  Interfaces
+// Classes
 //
+
 /**
-    Base class from which all other game objects will inherit
+  Base class from which all other game objects will inherit
 */
 export abstract class GameObject {
-    /** Current area object is in */
-    public area: World.Area;
+	/** Current area object is in */
+	public area: World.Area;
+	public colBox: {x: number, y: number, width: number, height: number};
+	public clipBox: {x: number, y: number, width: number, height: number};
+	public sprite: Graphics.Sprite | HTMLImageElement;
+	public mask: {x: number, y: number}[];
+	/** Is the object currently on screen (set before step events are called) */
+	public inView: boolean = true;
 
-    /**
-        All game objects will sorted by z to determine draw/step order.
-        If clipRadius > 0, draw/step will only be called if object is within clipRadius pixels of an active World.View port.
-    */
-    constructor(
-        public x : number,
-        public y : number,
-        public z : number = 0,
-        public clipRadius : number = 0
-    ) {
-        if (!World.globalArea) {
-            World.globalArea = new World.Area();
-            World.globalArea.open();
-        }
-        World.globalArea.addObject(this);
-    }
+	/**
+		z value determines order of draw/step events relative to other objects
+		colBox is used in collision detection and checking if object is in view
+	*/
+	constructor(
+		public x: number,
+		public y: number,
+		private _z: number = 0,
+		colWidth: number | {x?: number, y?: number, width: number, height?: number} = 0,
+		clipWidth: number | {x?: number, y?: number, width: number, height?: number} = -1
+	) {
+		if (typeof colWidth === 'number') {
+			this.colBox = {
+				x: 0,
+				y: 0,
+				width: colWidth,
+				height: colWidth
+			}
+		} else {
+			this.colBox = {
+				x: colWidth.x || 0,
+				y: colWidth.y || 0,
+				width: colWidth.width,
+				height: colWidth.height || colWidth.width
+			}
+		}
+		if (typeof clipWidth === 'number') {
+			if (clipWidth === -1) {
+				this.clipBox = this.colBox;
+			} else {
+				this.clipBox = {
+					x: 0,
+					y: 0,
+					width: clipWidth,
+					height: clipWidth
+				}
+			}
+		} else {
+			this.clipBox = {
+				x: clipWidth.x || 0,
+				y: clipWidth.y || 0,
+				width: clipWidth.width,
+				height: clipWidth.height || clipWidth.width
+			}
+		}
+		World.area.add(this);
+	}
 
-    /** Called on each Engine step event */
-    public step      (delta: number): void {};
-    /** Called at start of each Engine step event */
-    public startStep?(delta: number): void;
-    /** Called at end of each Engine step event */
-    public endStep?  (delta: number): void;
+	get z(): number {
+		return this._z;
+	}
+	set z(newZ: number) {
+		this._z = newZ;
+		this.area.zSort(this);
+	}
 
-    /** Called on each Engine draw event */
-    public draw      (ctx: CanvasRenderingContext2D, delta: number): void {};
-    /** Called at start of each Engine draw event */
-    public startDraw?(ctx: CanvasRenderingContext2D, delta: number): void;
-    /** Called at end of each Engine draw event */
-    public endDraw?  (ctx: CanvasRenderingContext2D, delta: number): void;
+	/** Called on each Engine step event */
+	public step      (delta: number): void {};
+	/** Called at start of each Engine step event */
+	public startStep?(delta: number): void;
+	/** Called at end of each Engine step event */
+	public endStep?  (delta: number): void;
 
-    /** Called on object mouseover if Input.setMouseListener() has been set */
-    public onMouseOver?(m: Input.Mouse): void;
+	/** Called on each Engine draw event */
+	public draw      (ctx: CanvasRenderingContext2D, delta: number): void {};
+	/** Called at start of each Engine draw event */
+	public startDraw?(ctx: CanvasRenderingContext2D, delta: number): void;
+	/** Called at end of each Engine draw event */
+	public endDraw?  (ctx: CanvasRenderingContext2D, delta: number): void;
 
-    /* Removes instance from game */
-    public die(): void {
-        this.area.removeObject(this);
-    }
+	/** Called on object mouseover if Input.setMouseListener() has been set */
+	public onMouseOver?(m: Input.Mouse): void;
+
+	/**
+		Returns instances in objects with overlapping clip boxes
+		When onlyInView is true, search is limited to only objects within current view
+	*/
+	public getCollisions(objects: GameObject[], onlyInView: boolean = false): GameObject[] {
+		return objects.filter(o => (
+			(!onlyInView || o.inView) &&
+			o.x + o.colBox.x < this.x + this.colBox.x + this.colBox.width &&
+			o.x + o.colBox.x + o.colBox.width > this.x + this.colBox.x &&
+			o.y + o.colBox.y < this.y + this.colBox.y + this.colBox.height &&
+			o.y + o.colBox.y + o.colBox.height > this.y + this.colBox.y
+		));
+	}
+
+	/* Returns true if rectangle defined by parameters is within objects colBox */
+	public checkCollision(x: number, y: number, w: number = 0, h: number = 0): boolean {
+		return (
+			x < this.x + this.colBox.x + this.colBox.width &&
+			x + w > this.x + this.colBox.x &&
+			y < this.y + this.colBox.y + this.colBox.height &&
+			y + h > this.y + this.colBox.y
+		);
+	}
+
+	/** Set a polygon mask to be used when casting shadows from a light source */
+	public setShadowMask(poly: {x: number, y: number}[] | Graphics.Sprite) {
+		if (typeof poly[0].x === 'number') {
+			this.mask = <{x: number, y: number}[]>poly;
+		}
+	}
+
+	/* Removes instance from game */
+	public delete(): void {
+		this.area.remove(this);
+	}
 }
 import { Engine } from './Engine';
+import { World } from './World';
 import { Input } from './Input';
 
 /** Provides helper functions to debug application */
 export module Debug {
-    //
-    // Private Variables
-    //
-    let show       : boolean = false,
-        prevT      : number = 0,
-        dT         : string = '1.000',
-        logs       : string[] = [],
-        permLog    : string[] = [],
-        container  : HTMLDivElement = document.createElement('div'),
-        output     : HTMLPreElement = document.createElement('pre'),
-        dTInterval = setInterval(function() {
-            dT = Engine.getDelta().toFixed(3).toString();
-        }, 500);
-    
-    container.setAttribute('style', `
-        position: fixed;
-        height: 100vh;
-        padding-top: 20px; 
-        top: 0px;
-        left: 20px;
-        width: 60vw;
-        pointer-events: none;
-    `);
-    container.appendChild(output);
+	//
+	// Private Variables
+	//
+	let
+		show			: boolean = false,
+		dTCounter	:	number = +new Date(),
+		logs      : string[] = [],
+		permLog   : string[] = [],
+		container : HTMLDivElement = document.createElement('div'),
+		output    : HTMLPreElement = document.createElement('pre');
+	
+	container.setAttribute('style', `
+		position: fixed;
+		height: 100vh;
+		padding-top: 20px; 
+		top: 0px;
+		left: 20px;
+		width: 60vw;
+		pointer-events: none;
+		text-shadow: 0 0 2px #000;
+	`);
+	container.appendChild(output);
 
-    //
-    // Public Variables
-    //
-    export let
-        /** Debugger output font size */
-        fontSize        : number = 14,
-        /** Degugger output font color */
-        color           : string = 'dodgerblue',
-        /** Toggle default proporties displayed in debugger */
-        defaultOptions  : {[option: string] : boolean} = {
-            dt: true, 
-            input : true
-        };
+	//
+	// Public Variables
+	//
+	export let
+		/** Debugger output font size */
+		fontSize        : number = 14,
+		/** Degugger output font color */
+		color           : string = 'dodgerblue',
+		/** Toggle default proporties displayed in debugger */
+		defaultOptions  : {[option: string] : boolean} = {
+			dt: true,
+			view: true,
+			input : true
+		};
 
-    //
-    // Public Methods
-    //
-    /** Turn debugger on/off */
-    export function toggle(state?): void {
-        if (state !== show) {
-            show = state === undefined ? !show : state;
-            show ? document.body.appendChild(container) : document.body.removeChild(container);
-        }
-    };
+	//
+	// Public Methods
+	//
+	/** Turn debugger on/off */
+	export function toggle(state?): void {
+		if (state !== show) {
+			show = state === undefined ? !show : state;
+			show ? document.body.appendChild(container) : document.body.removeChild(container);
+		}
+	};
 
-    /**
-        Log a variable to the debugger.
-        Objects will be stringifyed.
-        If logging a variable on every step, set persist = false to continually clear previous output.
-    */
-    export function log(data: any, persist = true): void {
-        let entry = JSON.stringify(data, null, '\t');
-        persist ? permLog.push(entry) : logs.push(entry);
-    };
+	/**
+		Log a variable to the debugger.
+		Objects will be stringifyed.
+		If logging a variable on every step, set persist = false to continually clear previous output.
+	*/
+	export function log(data: any, persist = false): void {
+		let entry = JSON.stringify(data, null, '\t');
+		persist ? permLog.push(entry) : logs.push(entry);
+	};
 
-    /** Clear debugger output */
-    export function clear(): void {
-        permLog = [];
-    };
+	/** Clear debugger output */
+	export function clear(): void {
+		permLog = [];
+	};
 
-    export function draw(ctx: CanvasRenderingContext2D): void {
-        output.setAttribute('style', `
-            font-size: ${fontSize};
-            color: ${color};
-            max-height: 100%;
-            overflow: hidden;
-            white-space: pre-wrap;
-        `);
+	export function draw(ctx: CanvasRenderingContext2D, dT: number): void {
+		if (+new Date() - dTCounter < 250) {
+			logs = [];
+			return;
+		}
+		dTCounter = +new Date();
 
-        output.innerHTML = '';
-        if (defaultOptions['dt']) {
-            output.innerHTML += `dT    : ${dT}<br/>`;
-        }
-        if (defaultOptions['input']) {
-            output.innerHTML += `Input : ${getInputData()}<br/><br/>`;
-        }
-        output.innerHTML += permLog.concat(logs).join('<br/>');
+		output.setAttribute('style', `
+			font-size: ${fontSize};
+			color: ${color};
+			max-height: 100%;
+			overflow: hidden;
+			white-space: pre-wrap;
+		`);
 
-        output.scrollTop = output.scrollHeight;
-        logs = [];
-    };
+		output.innerHTML = '';
+		if (defaultOptions.dt) {
+			output.innerHTML +=
+				`dT    : ${dT.toFixed(3)}<br/>`;
+		}
+		if (defaultOptions.view) {
+			output.innerHTML +=
+				`View  :<br/>` +
+				`    x: ${World.area.view.x.toFixed(2)},<br/>` +
+				`    y: ${World.area.view.y.toFixed(2)},<br/>` +
+				`    z: ${World.area.view.z.toFixed(2)}<br/>`;
+		}
+		if (defaultOptions.input) {
+			output.innerHTML +=
+				`Input : ${getInputData()}<br/><br/>`;
+		}
+		output.innerHTML += permLog.concat(logs).join('<br/>');
 
-    //
-    // Private Methods
-    //
-    function getInputData(): string {
-        var str = [];
-        str.push(`<br/>    keyPressed = [${Input.key.pressed.join(', ')}]`);
-        str.push(`    mouseState =`);
-        str.push(`        x: ${Input.mouse.x}`);
-        str.push(`        y: ${Input.mouse.y}`);
-        if (Input.mouse.left.pressed)  str.push(`    left.pressed`);
-        if (Input.mouse.left.dragging) str.push(`    left.dragging ${Input.mouse.left.drag ? ' left.drag' : ''}`);
-        if (Input.mouse.left.dragPts.length) {
-            str.push(`        left.dragPts: [<br/>${Input.mouse.left.dragPts.reduce((str, p) =>
-                str = (str.length > 200 ? '...' + str.substr(-200) : str) + '(' + p.x + ', ' + p.y + ')', '')}]`);
-        }
-        if (Input.mouse.right.pressed)  str.push(`    right.pressed`);
-        if (Input.mouse.right.dragging) str.push(`    right.dragging ${Input.mouse.right.drag ? 'right.drag' : ''}`);
-        if (Input.mouse.right.dragPts.length) {
-            str.push(`        right.dragPts: [<br/>${Input.mouse.right.dragPts.reduce((str, p) =>
-                str = (str.length > 200 ? '...' + str.substr(-200) : str) + '(' + p.x + ', ' + p.y + ')', '')}]`);
-        }
-        return str.join('<br/>');
-    };
-    
+		output.scrollTop = output.scrollHeight;
+		logs = [];
+	};
+
+	//
+	// Private Methods
+	//
+	function getInputData(): string {
+		var str = [];
+		str.push(`<br/>    keyPressed = [${Input.key.pressed.join(', ')}]`);
+		str.push(`    mouseState =`);
+		str.push(`        x: ${Input.mouse.x}`);
+		str.push(`        y: ${Input.mouse.y}`);
+		if (Input.mouse.left.pressed)  str.push(`    left.pressed`);
+		if (Input.mouse.left.dragging) str.push(`    left.dragging ${Input.mouse.left.drag ? ' left.drag' : ''}`);
+		if (Input.mouse.left.dragPts.length) {
+			str.push(`        left.dragPts: [<br/>${Input.mouse.left.dragPts.reduce((str, p) =>
+				str = (str.length > 200 ? '...' + str.substr(-200) : str) + '(' + p.x + ', ' + p.y + ')', '')}]`);
+		}
+		if (Input.mouse.right.pressed)  str.push(`    right.pressed`);
+		if (Input.mouse.right.dragging) str.push(`    right.dragging ${Input.mouse.right.drag ? 'right.drag' : ''}`);
+		if (Input.mouse.right.dragPts.length) {
+			str.push(`        right.dragPts: [<br/>${Input.mouse.right.dragPts.reduce((str, p) =>
+				str = (str.length > 200 ? '...' + str.substr(-200) : str) + '(' + p.x + ', ' + p.y + ')', '')}]`);
+		}
+		return str.join('<br/>');
+	};
+	
 }
 import { Debug } from './Debug';
 import { Input } from './Input';
@@ -173,271 +266,329 @@ import { World } from './World';
 
 /** This module controls initalization of engine, asset loading and application lifecycle loop */
 export module Engine {
-    //
-    // Types
-    //
-    /** List of assets names with relative file path */
-    export type AssetRouteList = {
-        sprites? : { [name : string] : string };
-        sounds?  : { [name : string] : string };
-        bgs?     : { [name : string] : string };
-    };
-    /** List of assets names with loaded asset object, generated from an AssetRouteList */
-    export type AssetList = {
-        sprites? : { [name : string] : HTMLImageElement };
-        sounds?  : { [name : string] : HTMLAudioElement };
-        bgs?     : { [name : string] : HTMLImageElement };
-    };
-    
-    //
-    // Private Variables
-    //
-    let
-        can: HTMLCanvasElement,
-        ctx: CanvasRenderingContext2D,
-        dT: number = 0,
-        currentT: number = +new Date(),
-        frameDur: number = 33,
-        assets: AssetList;
+	//
+	// Types
+	//
+	/** List of assets names with relative file path */
+	export type AssetRouteList = {
+		sprites? : { [name: string]: string };
+		sounds?  : { [name: string]: string };
+		bgs?     : { [name: string]: string };
+	};
+	/** List of assets names with loaded asset object, generated from an AssetRouteList */
+	export type AssetList = {
+		sprites? : { [name: string]: HTMLImageElement };
+		sounds?  : { [name: string]: HTMLAudioElement };
+		bgs?     : { [name: string]: HTMLImageElement };
+	};
+	
+	//
+	// Private Variables
+	//
+	let
+		can: HTMLCanvasElement,
+		ctx: CanvasRenderingContext2D,
+		dT: number = 0,
+		currentT: number = +new Date(),
+		frameDur: number = 33,
+		assets: AssetList;
 
-    //
-    // Public Variables
-    //
-    export let
-        /** Lifecycle hook; called before each engine step event */
-        preStep  : ()=>void = ()=>{},
-        /** Lifecycle hook; called after each engine step event */
-        postStep : ()=>void = ()=>{},
-        /** Lifecycle hook; called before each engine draw event */
-        preDraw  : ()=>void = ()=>{},
-        /** Lifecycle hook; called after each engine draw event */
-        postDraw : ()=>void = ()=>{},
-        /** Target canvas element width */
-        cW : number,
-        /** Target canvas element height */
-        cH : number;
+	//
+	// Public Variables
+	//
+	export let
+		/** Lifecycle hook; called before each engine step event */
+		preStep: (number)=>void = ()=>{},
+		/** Lifecycle hook; called after each engine step event */
+		postStep: (number)=>void = ()=>{},
+		/** Lifecycle hook; called before each engine draw event */
+		preDraw: (CanvasRenderingContext2D, number)=>void = () => {},
+		/** Lifecycle hook; called after each engine draw event */
+		postDraw: (CanvasRenderingContext2D, number)=>void = () => {},
+		/** Target canvas element width */
+		cW: number,
+		/** Target canvas element height */
+		cH: number;
 
-    //
-    // Setters / Getters
-    //
-    /** Returns current FPS as a fraction of target FPS */
-    export function getDelta(): number {
-        return dT;
-    };
-    /** Returns reference to target canvas HTML element  */
-    export function getCanvasEl(): HTMLCanvasElement {
-        return can;
-    };
-    /** Returns list of all current assets */
-    export function getAssets(): AssetList {
-        return assets;
-    };
-    /** Set the target FPS from the default of 30 FPS */
-    export function setTargetFPS(newFPS): void {
-        frameDur = 1000 / newFPS;
-    };
+	//
+	// Setters / Getters
+	//
+	/** Returns current FPS as a fraction of target FPS */
+	export function getDelta(): number {
+		return dT;
+	};
+	/** Returns reference to target canvas HTML element  */
+	export function getCanvasEl(): HTMLCanvasElement {
+		return can;
+	};
+	/** Returns context of target canvas */
+	export function getCanvasContext(): CanvasRenderingContext2D {
+		return ctx;
+	};
+	/** Return preloaded sprite asset */
+	export function getSprite(name: string, isCheck: boolean = false): HTMLImageElement {
+		let asset = assets.sprites[name];
+		if (!asset) {
+			if (isCheck) {
+				return null;
+			} else {
+				console.error(`Bunas Engine Error: No sprite asset with name "${name}" found.`);
+			}
+		}
+		return asset;
+	};
+	/** Return preloaded background asset */
+	export function getBackground(name: string, isCheck: boolean = false): HTMLImageElement {
+		let asset = assets.bgs[name];
+		if (!asset) {
+			if (isCheck) {
+				return null;
+			} else {
+				console.error(`Bunas Engine Error: No background asset with name "${name}" found.`);
+			}
+		}
+		return asset;
+	};
+	/** Return preloaded sound asset */
+	export function getSound(name: string, isCheck: boolean = false): HTMLAudioElement {
+		let asset = assets.sounds[name];
+		if (!asset) {
+			if (isCheck) {
+				return null;
+			} else {
+				console.error(`Bunas Engine Error: No sound asset with name "${name}" found.`);
+			}
+		}
+		return asset;
+	};
 
-    //
-    // Initalisation
-    //
-    let
-        _externalCallback: Function,
-        delayLoad: ()=>void,
-        delayInit: ()=>void,
-        initComplete: boolean = false;
+	//
+	// Initalisation
+	//
+	let
+		_externalCallback: Function,
+		delayLoad: ()=>void,
+		delayInit: ()=>void,
+		initComplete: boolean = false;
 
-    document.onreadystatechange = function() {
-        if (document.readyState === 'complete' && delayInit) {
-            delayInit();
-        }
-    };
+	document.onreadystatechange = function() {
+		if (document.readyState === 'complete' && delayInit) {
+			delayInit();
+		}
+	};
 
-    /**
-        Initalises engine and begins application.
-        An external callback function must be provided as an entry point to your code; called once initalistion has complete.
-        The target canvas may be provided as an element or id of an element. Otherwise the first canvas element found will be used, or one will be created.
-    */
-    export function init(
-        externalCallback: Function,
-        canEl? : string | HTMLElement, 
-        canWidth? : number,
-        canHeight? : number
-    ): void {
-        if (initComplete) {
-            console.error('Bunas Error: Engine instance has already been initalised');
-            return;
-        }
-        if (document.readyState !== 'complete') {
-            delayInit = init.bind(null, externalCallback, canEl, canWidth, canHeight);
-            return;
-        } else {
-            delayInit = null;
-            initComplete = true;
-        }
+	/**
+		Initalises engine and begins application.
+		An external callback function must be provided as an entry point to your code; called once initalistion has complete.
+		The target canvas may be provided as an element or id of an element. Otherwise the first canvas element found will be used, or one will be created.
+	*/
+	export function init(
+		externalCallback: Function,
+		canEl? : string | HTMLElement, 
+		canWidth? : number,
+		canHeight? : number
+	): void {
+		if (initComplete) {
+			console.error('Bunas Error: Engine instance has already been initalised');
+			return;
+		}
+		if (document.readyState !== 'complete') {
+			delayInit = init.bind(null, externalCallback, canEl, canWidth, canHeight);
+			return;
+		} else {
+			delayInit = null;
+			initComplete = true;
+		}
 
-        if (canEl) {
-            can = <HTMLCanvasElement>(typeof canEl === 'string' ? document.getElementById(canEl) : canEl);
-            if (canWidth) {
-                can.width = canWidth;
-            }
-            if (canHeight) {
-                can.height = canHeight;
-            }
-        } else {
-            can = document.getElementsByTagName('canvas')[0];
-            if (!can) {
-                can = document.createElement('canvas');
-                document.body.appendChild(can);
-            }
-            can.width = canWidth || window.innerWidth;
-            can.height = canHeight || window.innerHeight;
-        }
-        cW = can.width;
-        cH = can.height;
-        ctx = can.getContext('2d');
-        ctx.translate(0.5, 0.5);
+		if (canEl) {
+			can = <HTMLCanvasElement>(typeof canEl === 'string' ? document.getElementById(canEl) : canEl);
+			if (canWidth) {
+				can.width = canWidth;
+			}
+			if (canHeight) {
+				can.height = canHeight;
+			}
+		} else {
+			can = document.getElementsByTagName('canvas')[0];
+			if (!can) {
+				can = document.createElement('canvas');
+				document.body.appendChild(can);
+			}
+			can.width = canWidth || window.innerWidth;
+			can.height = canHeight || window.innerHeight;
+		}
+		cW = can.width;
+		cH = can.height;
+		ctx = can.getContext('2d');
+		ctx.imageSmoothingEnabled = false;
 
-        Input.init();
-        _externalCallback = externalCallback;
+		Input.init();
+		World.area = new World.Area('globalArea');
+		World.area.open();
+		_externalCallback = externalCallback;
 
-        if (delayLoad) {
-            delayLoad();
-        } else {
-            initLoop();
-        }
-    };
+		if (delayLoad) {
+				delayLoad();
+		} else {
+				initLoop();
+		}
+	};
 
-    //
-    // Asset Loading
-    //
-    let
-        loading           : number = 0,
-        assetTotal        : number,
-        spriteLoader      : any,
-        soundLoader       : any,
-        bgLoader          : any;
+	//
+	// Asset Loading
+	//
+	let
+		loading           : number = 0,
+		assetTotal        : number,
+		spriteLoader      : any,
+		soundLoader       : any,
+		bgLoader          : any;
 
-    /** 
-        Loads image and sound assets from provided list of routes before application is initalised
-        Optional drawing function allows creation of custom loading bar
-    */
-    export function preLoad(
-        assets            : AssetRouteList,
-        loadingDrawFunc?  : (ctx: CanvasRenderingContext2D, fractionLoaded: number)=>void
-    ) {
-        if (initComplete) {
-            console.error('Bunas Error: Engine already initalised. Assets can only be preloaded when called before Engine.init()');
-            return;
-        }
-        if (!loadingDrawFunc) {
-            loadingDrawFunc = function(ctx, fractionLoaded) {
-                ctx.strokeStyle = '#fff';
-                ctx.fillStyle = '#fff';
-                ctx.lineWidth = 10;
-                ctx.beginPath();
-                    ctx.arc(
-                        625, 295, 140,
-                        (-Math.PI / 2),
-                        (-Math.PI / 2) + ((Math.PI * 2) * (1 - fractionLoaded)),
-                        false
-                    );
-                ctx.stroke();
-            }
-        }
-        delayLoad = internalLoad.bind(null, assets, loadingDrawFunc);
-    }
+	/** 
+		Loads image and sound assets from provided list of routes before application is initalised
+		Optional drawing function allows creation of custom loading bar
+	*/
+	export function preLoad(
+		assets            : AssetRouteList,
+		loadingDrawFunc?  : (ctx: CanvasRenderingContext2D, fractionLoaded: number)=>void
+	) {
+		if (initComplete) {
+			console.error('Bunas Error: Engine already initalised. Assets can only be preloaded when called before Engine.init()');
+			return;
+		}
+		if (!loadingDrawFunc) {
+			loadingDrawFunc = function(ctx, fractionLoaded) {
+				ctx.strokeStyle = '#fff';
+				ctx.fillStyle = '#fff';
+				ctx.lineWidth = 10;
+				ctx.beginPath();
+					ctx.arc(
+						625, 295, 140,
+						(-Math.PI / 2),
+						(-Math.PI / 2) + ((Math.PI * 2) * (1 - fractionLoaded)),
+						false
+					);
+				ctx.stroke();
+			}
+		}
+		delayLoad = internalLoad.bind(null, assets, loadingDrawFunc);
+	}
 
-    function internalLoad(
-        assetRoutes       : AssetRouteList,
-        loadingDrawFunc?  : (ctx: CanvasRenderingContext2D, fractionLoaded: number)=>void
-    ): void {
-        spriteLoader = assetRoutes.sprites || {};
-        soundLoader  = assetRoutes.sounds || {};
-        bgLoader     = assetRoutes.bgs || {};
+	function internalLoad(
+		assetRoutes       : AssetRouteList,
+		loadingDrawFunc?  : (ctx: CanvasRenderingContext2D, fractionLoaded: number)=>void
+	): void {
+		spriteLoader = assetRoutes.sprites || {};
+		soundLoader  = assetRoutes.sounds || {};
+		bgLoader     = assetRoutes.bgs || {};
 
-        assetTotal = Object.keys(spriteLoader).length +
-                     Object.keys(soundLoader).length +
-                     Object.keys(bgLoader).length;
-        assetLoader();
-        
-        advanceLoading(loadingDrawFunc);
-    };
+		assetTotal =
+			Object.keys(spriteLoader).length +
+			Object.keys(soundLoader).length +
+			Object.keys(bgLoader).length;
+		assetLoader();
+		
+		advanceLoading(loadingDrawFunc);
+	};
 
-    function advanceLoading(loadScreen: (ctx: CanvasRenderingContext2D, completion: number)=>void): void {
-        if (loading > 0) {
-            ctx.clearRect(0, 0, cW, cH);
-            loadScreen(ctx, loading / assetTotal);
-            window.requestAnimationFrame(advanceLoading.bind(null, loadScreen));
-        } else {
-            assets = {
-                sprites : spriteLoader,
-                sounds  : soundLoader,
-                bgs     : bgLoader
-            };
-            initLoop();
-        }
-    };   
+	function advanceLoading(loadScreen: (ctx: CanvasRenderingContext2D, completion: number)=>void): void {
+		if (loading > 0) {
+			ctx.clearRect(0, 0, cW, cH);
+			loadScreen(ctx, loading / assetTotal);
+			window.requestAnimationFrame(advanceLoading.bind(null, loadScreen));
+		} else {
+			assets = {
+				sprites : spriteLoader,
+				sounds  : soundLoader,
+				bgs     : bgLoader
+			};
+			initLoop();
+		}
+	};   
 
-    function assetLoader(): void {
-        for (let element in spriteLoader) {
-            loading += 1;
-            let spr = new Image();
-            spr.src = spriteLoader[element];
-            spriteLoader[element] = spr;
+	function assetLoader(): void {
+		for (let element in spriteLoader) {
+			loading += 1;
+			let spr = new Image();
+			spr.src = spriteLoader[element];
+			spriteLoader[element] = spr;
 
-            spr.onload = () => loading -= 1;
-        }
+			spr.onload = () => loading -= 1;
+		}
 
-        for (let element in bgLoader) {
-            loading += 1;
-            let bg = new Image();
-            bg.src = bgLoader[element];
-            bgLoader[element] = bg;
+		for (let element in bgLoader) {
+			loading += 1;
+			let bg = new Image();
+			bg.src = bgLoader[element];
+			bgLoader[element] = bg;
 
-            bg.onload = () => loading -= 1;
-        }
+			bg.onload = () => loading -= 1;
+		}
 
-        for (let element in soundLoader) {
-            loading += 1;
-            let sound = new Audio();
-            sound.src = soundLoader[element];
-            soundLoader[element] = sound;
-            sound.volume = 0.1;
+		for (let element in soundLoader) {
+			loading += 1;
+			let sound = new Audio();
+			sound.src = soundLoader[element];
+			soundLoader[element] = sound;
+			sound.volume = 0.1;
 
-            sound.load();
-            sound.oncanplaythrough = () => loading -= 1;
-        }
-    };
+			sound.load();
+			sound.oncanplaythrough = () => loading -= 1;
+		}
+	};
 
-    //
-    // Lifecycle Loop
-    //
-    function initLoop(): void {
-        _externalCallback();
-        loop();
-    };
+	//
+	// Lifecycle Loop
+	//
+	function initLoop(): void {
+		_externalCallback();
+		loop();
+	};
 
-    function loop(): void {
-        setTimeout(() => {
-            let newT: number = +new Date();
-            dT = (newT - currentT) / frameDur;
-            currentT = newT;
-            
-            Input.step();
-            preStep();
-            World.step(dT);
-            postStep();
+	//
+	//	Lifecycle event order:
+	//		
+	//		Engine.preStep()
+	//		objs.preStep()
+	//		objs.step()
+	//		objs.postStep()
+	//		Engine.postStep()
+	//
+	//		reset input listeners
+	//
+	//		Engine.preDraw()
+	//		views updated, obj's inView updated
+	//		objsInView.preDraw()
+	//		objsInView.draw()
+	//		objsInView.postDraw()
+	//
+	//		Light.draw()
+	//		Engine.postDraw()
+	//
+	//		Debug.draw()
+	//		Input.drawCursor()
+	//
+	function loop(): void {
+		setTimeout(() => {
+			let newT: number = +new Date();
+			dT = (newT - currentT) / frameDur;
+			currentT = newT;
+			
+			preStep(dT);
+			World.step(dT);
+			postStep(dT);
+			Input.step();
 
-            ctx.clearRect(-1, -1, cW + 1, cH + 1);
-            preDraw();
-            World.draw(ctx, dT);
-            Debug.draw(ctx);
-            Input.drawCursor(ctx, dT);
-            postDraw();
+			ctx.clearRect(-1, -1, cW + 1, cH + 1);
+			preDraw(ctx, dT);
+			World.draw(ctx, dT);
+			Debug.draw(ctx, dT);
+			Input.drawCursor(ctx, dT);
+			postDraw(ctx, dT);
 
-            window.requestAnimationFrame(loop.bind(this));
-        }, frameDur - (+new Date()) + currentT);
-    };
+			window.requestAnimationFrame(loop.bind(this));
+		}, frameDur - (+new Date()) + currentT);
+	};
 }
 import { Engine } from './Engine';
 import { GameObject } from './Common';
@@ -445,1418 +596,1694 @@ import { Physics } from './Physics';
 
 /** Provides functions and classes for rendering bitmap and vector graphics on the canvas */
 export module Graphics {
-    //
-    // Types / Interfaces
-    //
-    /** */
-    export type keyframe     = number | number[] | number[][] | (number | string)[][];
-    /** */
-    export type keyframeSet  = { [property: string] : keyframe };
-    /** */
-    export type drawFunction = (frame: { [property: string] : number }, ctx: CanvasRenderingContext2D)=>void;
-    export type spriteState  = {
-        duration   : number,
-        elements   : { [element: string] : keyframeSet },
-        fr?        : number,
-        iteration? : number,
-        easeIn?    : string,
-        easeOut?   : string,
-        onEnd?     : ()=>void
-    };
+	//
+	// Types / Interfaces
+	//
+	/** Describes how to animate the properties of a vector sprite.
+			The value associated with each property is converted to a constant value based on what the current frame of the animation loop is.
+			This constant value is then passed to the sprite's draw function to be rendered.
+			The value can be expressed as:
+				A range of values to be reached at equal intervals
+					[10, 5, 30, 5]
+				A range of values to be reached at a specific time during the animation cycle
+					[[0, 10], [0.2, 5], [0.8, 9]]
+				A range of values to be reached with an easing function specified
+					[[0, 30, 'bounceIn'], [1, 20, 'bounceOut']]
+	*/
+	export type keyframeSet  = {
+		[property: string] :
+			number[] |
+			number[][] |
+			(number | string)[][]
+	};
+	/** Function which describes how to draw the sprite.
+			Frame is a keyframe set whoses values have been interpolated to constants for each property
+	*/
+	export type drawFunction = (frame: { [property: string] : number }, ctx: CanvasRenderingContext2D)=>void;
+	export type spriteState  = {
+		duration   : number,
+		elements   : { [element: string] : keyframeSet },
+		fr?        : number,
+		iteration? : number,
+		easeIn?    : string,
+		easeOut?   : string,
+		onEnd?     : ()=>void
+	};
 
-    /** Base interface implemented by all sprites, both vector and bitmap */
-    export interface ISprite {
-        setDuration: (frames: number, perFrame?: boolean)=>void;
-        draw: (ctx: CanvasRenderingContext2D, x: number, y: number, ang: number)=>void;
-        toggle: (play: boolean, setFrame: number)=>void;
-        reverse: ()=>void;
-        onEnd: ()=>void;
-    };
-
-    export let
-        /** List of preloaded sprite assets */
-        sprites: { [name: string] : HTMLImageElement },
-        /** List of preloaded background assets */
-        bgs: { [name: string] : HTMLImageElement };
-
-    export function setAssets(
-        spriteAssets: { [name: string] : HTMLImageElement },
-        bgAssets:{ [name: string] : HTMLImageElement }
-    ) {
-        sprites = spriteAssets;
-        bgs = bgAssets;
-    }
+	/** Base interface implemented by all sprites, both vector and bitmap */
+	export interface Sprite {
+		setDuration: (frames: number, perFrame?: boolean)=>void;
+		draw: (ctx: CanvasRenderingContext2D, x: number, y: number, ang?: number)=>void;
+		toggle: (play: boolean, setFrame: number)=>void;
+		reverse: ()=>void;
+		onEnd: ()=>void;
+	};
 
 
-    //
-    // Class: Bitmap Sprite
-    //
-    /** Class for a bitmap sprite */
-    export class Sprite implements ISprite {
-        private sprite    : HTMLImageElement;
-        private frCurrent : number = 0;
-        private frDur     : number;
-        private paused    : boolean = false;
-        private reversed  : boolean = false;
-        /** */
-        public width      : number;
-        /** */
-        public height     : number;
-        /** Animation lifecycle hook to run after animation completes a loop */
-        public onEnd      : ()=>void = ()=>{};
-
-        /**
-            Sprite can be provided as an Image element or the name of a preloaded asset.
-            Animated sprites must take the form of an unpadded horizontal sprite sheet.
-            frTotal is the number of frames in the sprite sheet.
-            duration is the number of game frame animation will last; may be a fraction.
-        */
-        constructor(
-            sprite  : string | HTMLImageElement,
-            private frTotal: number = 1,
-            duration: number = 0
-        ) {
-            this.sprite = typeof sprite === 'string' ? sprites[sprite] : sprite;
-            this.width  = this.sprite.width / frTotal;
-            this.height = this.sprite.height;
-            this.frDur = duration / frTotal;
-        };
-        
-        /** Draw the sprite to the canvas at the point { canX, canY }.
-            Ang may be provided to rotate the sprite by the given angle.
-        */
-        public draw(ctx: CanvasRenderingContext2D, canX: number, canY: number, ang: number = 0): void {
-            ctx.save();
-                ctx.translate(canX, canY);
-                ctx.rotate(ang);
-                let currentFrame = Math.floor(this.frCurrent) * this.width;
-                if (this.reversed) {
-                    currentFrame = this.frTotal - currentFrame;
-                }
-                ctx.drawImage(
-                    this.sprite,
-                    currentFrame,   0,
-                    this.width,     this.height,
-                    0,              0,
-                    this.width,     this.height
-                );
-                if (this.frDur > 0 && !this.paused) {
-                    this.frCurrent += this.frDur;
-                    if (this.frCurrent >= this.frTotal) {
-                        this.frCurrent = 0;
-                    }
-                }
-            ctx.restore();
-        };
-
-        /** Sets number of game frames animation will last for
-            If perFrame, sets number of game frames a single frame of sprite sheet will last for
-        */
-        public setDuration(frames: number, perFrame: boolean = false) {
-            this.frDur = perFrame ? frames : frames / this.frTotal;
-        }
-
-        /** Play/pause animation.
-            Will toggle to opposite of current state if play is not provided.
-        */
-        public toggle(play?: boolean) {
-            if (typeof play === 'undefined') {
-                this.paused = !this.paused;
-            } else {
-                this.paused = !play;
-            } 
-
-        };
-
-        /** Reverse direction of animation.
-            Will toggle to opposite of current direction if runBackwards is not provided.
-        */
-        public reverse(runBackwards?:boolean) {
-            if (typeof runBackwards === 'undefined') {
-                this.reversed = !this.reversed;
-            } else {
-                this.reversed = runBackwards;
-            }
-        };
-    };
-
-    //
-    // Class: Vector Sprite
-    //
-    /** Class for vector graphic sprites */
-    export class VectorSprite implements ISprite {
-        private fr        : number = 0;
-        private paused : boolean = false;
-        /** Animation lifecycle hook to run after animation completes a loop */
-        public onEnd     : () => void = () => {};
-
-        /** Sprite is provided as a draw function with a series of canvas draw commands
-            keyFrameSet contains a list of keyframes whose variables will be interpolated based on the current frame before being provided to the draw function
-            duration is the number of game frame animation will last; may be a fraction.
-        */
-        constructor(
-            public drawFunction: drawFunction,
-            public keyframeSet: keyframeSet = null,
-            public duration: number = 30
-        ) {
-        };
-
-        /** Draw the sprite to the canvas at the point { canX, canY }.
-            Ang may be provided to rotate the sprite by the given angle.
-        */
-        public draw(ctx: CanvasRenderingContext2D, x: number, y: number, ang: number = 0) {
-            ctx.save();
-                ctx.translate(x, y);
-                ctx.rotate(ang);
-                this.drawFunction(this.keyframeSet ? tween(this.keyframeSet, this.fr) : null, ctx);
-            ctx.restore();
-
-            if (this.paused) {
-                return;
-            }
-
-            this.fr += (1 / this.duration) * Engine.getDelta();
-            
-            if (this.fr > 1 || this.fr < 0) {
-                this.fr = (this.fr + 1) % 1;
-                this.onEnd();
-            }
-        };
-
-        /** Sets number of game frames to display animation for */
-        public setDuration(frames: number) {
-            this.duration = this.duration < 0 ? frames * -1 : frames;
-        }
-
-        /** Play/pause animation.
-            Will toggle to opposite of current state if play is not provided.
-        */
-        public toggle(play?: boolean ) {
-            if (typeof play === 'undefined') {
-                this.paused = !this.paused;
-            } else {
-                this.paused = !play;
-            }
-        };
-
-        /** Reverse direction of animation.
-            Will toggle to opposite of current direction if runBackwards is not provided.
-        */
-        public reverse(runBackwards?:boolean) {
-            if (
-                (typeof runBackwards === 'undefined') ||
-                (this.duration < 0 && !runBackwards) ||
-                (this.duration > 0 && runBackwards)
-            ) {
-                this.duration *= -1;
-            }
-        };
-    };
-
-    //
-    // Class: Dynamic Vector Sprite
-    //
-    export class DynamicVectorSprite implements ISprite {
-        public fr        : number = 0;
-        public duration  : number;
-        public onEnd     : ()=>void = ()=>{};
-        public currentState  : string;
-        public currentAction : string;
-        private state    : spriteState;
-        private action   : spriteState = null;
-        private isPaused : boolean = false;
-
-        constructor(
-            public elements : { [element: string] : drawFunction },
-            public states   : { [state: string]   : spriteState  },
-            public actions  : { [action: string]  : spriteState  }
-        ) {
-            for (let s in states) {
-                states[s].onEnd = states[s].onEnd || (() => {});
-            }
-            for (let a in actions) {
-                actions[a].fr = 0;
-                actions[a].onEnd = actions[a].onEnd || (() => {});
-            }
-            this.currentState = Object.keys(states)[0];
-            this.state = states[this.currentState];
-            this.duration = this.state.duration;
-        };
-
-        public draw(ctx: CanvasRenderingContext2D, x: number, y: number, ang: number = 0) {
-            ctx.save();
-                ctx.translate(x, y);
-                ctx.rotate(ang);
-                for (let el in this.elements) {
-                    let props;
-                    if (this.action && this.action.elements[el]) {
-                        props = tween(this.action.elements[el], this.action.fr);
-                    }
-                    if (this.state.elements[el]) {   
-                        let stateProps = tween(this.state.elements[el], this.fr);
-                        if (!props) {
-                            props = stateProps;
-                        } else {
-                            for (let p in stateProps) {
-                                if (!props[p]) {
-                                    props[p] = stateProps[p];
-                                }
-                            }
-                        }
-                    }
-                    if (props) {
-                        this.elements[el](props, ctx); 
-                    }
-                }
-            ctx.restore();
-
-            if (!this.isPaused) {
-                if (this.duration) {
-                    this.fr += (1 / this.duration) * Engine.getDelta();
-                    if (this.fr > 1 || this.fr < 0) {
-                        this.fr = (this.fr + 1) % 1;
-                        this.state.onEnd();
-                        this.onEnd();
-                    }
-                }
-                if (this.action) {
-                    this.action.fr += (1 / this.action.duration) * Engine.getDelta();
-                    if (this.action.fr > 1 || this.action.fr < 0) {
-                        if (this.action.iteration > 1) {
-                            this.action.iteration--;
-                        } else {
-                            if (this.action.iteration === -1) {
-                                this.action.onEnd();
-                            } else {
-                                this.action.onEnd();
-                                this.action = null;
-                                this.currentAction = null;
-                            }
-                        }
-                    }
-                }
-            }
-        };
-
-        /** Sets number of game frames to display sprite animation for */
-        public setDuration(frames: number) {
-            this.duration = frames;
-        }
-
-        public changeState(state: string, setFrame: number = -1, transition: number = 5, ease: string = 'sine'): void {
-            if (this.currentState === state && setFrame === -1) {
-                return;
-            }
-            this.currentState = state;
-
-            if (transition) {
-                let nextState = this.states[state],
-                    endFrame;
-                if (nextState.duration) {
-                    endFrame = setFrame === -1 ? (1 + this.fr + (transition / nextState.duration)) % 1 : setFrame;
-                } else {
-                    endFrame = 0;
-                }
-                let transState = {
-                    duration : transition,
-                    onEnd    : this.setState.bind(this, state, endFrame),
-                    elements : {}
-                };
-                for (let el in nextState.elements) {
-                    transState.elements[el] = {};
-                    let startValues = this.state.elements[el] ? tween(this.state.elements[el], this.fr) : false,
-                        endValues   = tween(nextState.elements[el], endFrame);
-                    for (let param in nextState.elements[el]) {
-                        if (!startValues || startValues[param] === undefined) {
-                            transState.elements[el][param] = endValues[param];
-                        } else {
-                            transState.elements[el][param] = [[0, startValues[param], ease], [1, endValues[param], ease]];
-                        }
-                    }
-                }
-                this.state = transState;
-                this.duration = transition;
-                this.fr = 0;
-            } else {
-                this.setState(state, setFrame);
-            }
-        };
-
-        private setState(state: string, setFrame = -1) {
-            this.state = this.states[state];
-            if (setFrame !== -1) {
-                this.fr = setFrame;
-            }
-            this.duration = this.state.duration;
-        };
-
-        public trigger(action: string, iterations: number = 1, transition: number = 10, ease: string = 'sine'): void {
-            if (this.currentAction === action) {
-                return;
-            }
-            this.currentAction = action;
-
-            if (transition) {
-                let nextAction = this.actions[action];
-                this.action = {
-                    fr        : 0,
-                    iteration : -1,
-                    duration  : transition,
-                    onEnd     : this.setAction.bind(this, action, iterations),
-                    elements  : {}
-                };
-                for (let el in nextAction.elements) {
-                    this.action.elements[el] = {};
-                    let startValues = this.state.elements[el] ? tween(this.state.elements[el], this.fr) : false,
-                        endValues   = tween(nextAction.elements[el], 0);
-                    for (let param in nextAction.elements[el]) {
-                        if (!startValues || startValues[param] === undefined) {
-                            this.action.elements[el][param] = endValues[param];
-                        } else {
-                            this.action.elements[el][param] = [[0, startValues[param], ease], [1, endValues[param], ease]];
-                        }
-                    }
-                }
-            } else {
-                this.setAction(action, iterations)
-            }
-        };
-
-        private setAction(action, iterations) {
-            this.action = this.actions[action];
-            this.action.iteration = iterations;
-            this.action.fr = 0;
-        };
-
-        public toggle(play: boolean = null, setFrame?: number, setActionFrame?: number) {
-            this.isPaused = play === null ? !this.isPaused : !play;
-            if (setFrame || setFrame === 0) {
-                this.state.fr = setFrame;
-            }
-            if ((setActionFrame || setActionFrame === 0) && this.action) {
-                this.action.fr = setActionFrame;
-            }
-        };
-
-        public reverse() {
-            this.duration *= -1;
-        };
-    };
-
-    /** Class to create a particle emitter */
-    export class Emitter extends GameObject {
-        private parts       : Particle[] = [];
-        private currentRate : number = 0;
-        private _grav       : Physics.Vec;
-        private _size       : number[] = [2, 2];
-        private _color      : string = 'dodgerblue';
-        private _lifespan   : number[] = [100, 100];
-        private _ang        : number[] = [0, 0];
-        private _power      : number[] = [1, 1];
-        private _rate       : number[] = [10, 10];
-
-        constructor(
-			public x      : number,
-			public y      : number,
-		    ang?   : number | number[],
-		    power? : number | number[],
-		    rate?  : number | number[],
-		) {
-            super(x, y);
-            if (ang) {
-                this._ang = this.configRange(ang);
-            }
-            if (power) {
-                this._power = this.configRange(power);
-            }
-            if (rate) {
-                this._rate = this.configRange(rate);
-            }
-        };
-
-        set gravity(g : Physics.Vec | number) {
-            if (typeof g === 'number') {
-                this._grav = new Physics.Vec(g, Math.PI / 2, true);                    
-            } else {
-                this._grav = g as Physics.Vec;
-            }
-        }
-
-        set angle(a: number | number[]) {
-            this._ang = this.configRange(a);
-        }
-        set power(a: number | number[]) {
-            this._power = this.configRange(a);
-        }
-        set rate(a: number | number[]) {
-            this._rate = this.configRange(a);
-        }
-
-        private configRange(p): number[] {
-            if (typeof p === 'object') {
-                return [p[0], p[1] - p[0]];
-            } else {
-                return [p, 0];
-            }
-        }
-        
-        public setParticle(
-            size: number | number[],
-			color?: string,
-            lifespan?: number | number[]
-        ) {
-            this._size = this.configRange(size);
-            if (color) {
-                this._color = color;
-            }
-            if (lifespan) {
-                this._lifespan = this.configRange(lifespan);
-            }
-        }
-
-		public step(dt) {
-            this.currentRate += dt;
-            if (this.currentRate > this._rate[0]) {
-                for(let i = this._rate[0]; i < this.currentRate; i += this._rate[0]) {
-                    let s = this._size[0]     + (Math.random() * this._size[1]),
-                        c = this._color,
-                        l = this._lifespan[0] + (Math.random() * this._lifespan[1]),
-                        a = this._ang[0]      + (Math.random() * this._ang[1]),
-                        p = this._power[0]    + (Math.random() * this._power[1]);
-                    this.parts.push(new Particle(this.x, this.y, s, c, l, new Physics.Vec(p, a, true), (this.currentRate - i) / this._rate[0]));
-                }   
-                this.currentRate %= this._rate[0];
-                this.currentRate += Math.random() * this._rate[1];
-            }
-			this.parts.forEach((p, i) => {
-				p.lifespan -= dt;
-				if (p.lifespan < 0) {
-                    p.die(this.parts, i);
-				}
-				p.step(this._grav);
-            });
-		}
-
-		public draw(ctx, dt) {
-			ctx.beginPath();
-            this.parts.forEach(p => {
-                p.draw(ctx);
-            });
-            ctx.fill();
-		}
+	//
+	// Static Methods
+	//
+	
+	/**
+		Turn on/off image smoothing (antialiasing)
+		This is turned off by default
+	*/
+	export function setImageSmoothing(on: boolean) {
+		Engine.getCanvasContext().imageSmoothingEnabled = on;
 	}
 
-	class Particle {
-        private opacity: number = 1;
-        public draw: (ctx: CanvasRenderingContext2D)=>void;
+	
+	//
+	// Class: Bitmap Tileset
+	//
+	/** Class for a bitmap tileset, a single image containing several individual static tiles */
+	export class TileSet {
+		private tileSet: HTMLImageElement;
+		/** Width of a single Tile */
+		public width: number;
+		/** Height of a single Tile */
+		public height: number;
 
-		constructor (
-            private x           : number,
-            private y           : number,
-			private size        : number = 2,
-			private color       : string = 'black',
-			public  lifespan    : number = 1000,
-            private velocity    : Physics.Vec,
-                    offset      : number = 1
+		/**
+			Tileset can be provided as an Image element or the name of a preloaded asset.
+			If no tile height is given, it is assumed the tileset is one tile high
+		*/
+		constructor(
+			tileImage: string | HTMLImageElement,
+			tileWidth: number,
+			tileHeight?: number
 		) {
-			if (!velocity) {
-				this.velocity = new Physics.Vec(0, 0);
-            }
-            this.x += this.velocity.scale(offset).x - (this.size / 2);
-            this.y += this.velocity.scale(offset).y - (this.size / 2);
-
-            if (this.size <= 2) {
-                this.draw = (ctx) => {
-                    ctx.moveTo(this.x, this.y);
-                    ctx.rect(this.x, this.y, this.size, this.size);
-                    if (this.opacity < 1) {
-                        ctx.globalAlpha = this.opacity;
-                    }
-                    if (ctx.strokeStyle !== this.color) {
-                        ctx.strokeStyle = this.color;
-                        ctx.stroke();
-                        ctx.beginPath();
-                    }
-                    ctx.globalAlpha = 1;
-                }
-            } else {
-                this.draw = (ctx) => {
-                    ctx.moveTo(this.x, this.y);
-                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                    if (this.opacity < 1) {
-                        ctx.globalAlpha = this.opacity;
-                    }
-                    if (ctx.fillStyle !== this.color) {
-                        ctx.fillStyle = this.color;
-                        ctx.fill();
-                        ctx.beginPath();
-                    }
-                    ctx.globalAlpha = 1;
-                }
-            }
+			this.tileSet = typeof tileImage === 'string' ? Engine.getBackground(tileImage) : tileImage;
+			this.width = tileWidth;
+			this.height = tileHeight || this.tileSet.height;
 		};
+		
+		/** Draw the tile to the canvas at the point { canX, canY }. */
+		public draw(
+			ctx: CanvasRenderingContext2D,
+			canX: number,
+			canY: number,
+			tileNum: number
+		): void {
+			ctx.save();
+				ctx.translate(canX, canY);
+				let x = tileNum * this.width,
+						y = 0;
+				if (x >= this.tileSet.width) {
+					y = Math.floor(x / this.tileSet.width) * this.height; 
+					x %= this.tileSet.width;
+				}
+				ctx.drawImage(
+					this.tileSet,
+					x,          y,
+					this.width, this.height,
+					0,          0,
+					this.width, this.height
+				);
+			ctx.restore();
+		};
+	};
 
-		public step(gravity?: Physics.Vec) {
-            if (gravity) {
-                this.velocity = this.velocity.add(gravity);
-            }
-			this.x += this.velocity.x;
-            this.y += this.velocity.y;
-        }
-        
-        public die(parts, i) {
-            this.opacity -= 0.2;
-            if (this.opacity <= 0)
-            parts.splice(i, 1);
-        }
+
+	//
+	// Class: Bitmap Sprite
+	//
+	/** Class for a bitmap sprite */
+	export class SpriteSheet implements Sprite {
+			private sprite    : HTMLImageElement;
+			private frCurrent : number = 0;
+			private frDur     : number;
+			private paused    : boolean = false;
+			private reversed  : boolean = false;
+			/** */
+			public width      : number;
+			/** */
+			public height     : number;
+			/** Animation lifecycle hook to run after animation completes a loop */
+			public onEnd      : ()=>void = ()=>{};
+
+			/**
+					Sprite can be provided as an Image element or the name of a preloaded asset.
+					Animated sprites must take the form of an unpadded horizontal sprite sheet.
+					frTotal is the number of frames in the sprite sheet.
+					duration is the number of game frame animation will last; may be a fraction.
+			*/
+			constructor(
+					sprite  : string | HTMLImageElement,
+					private frTotal: number = 1,
+					duration: number = 0
+			) {
+					this.sprite = typeof sprite === 'string' ? Engine.getSprite(sprite) : sprite;
+					this.width  = this.sprite.width / frTotal;
+					this.height = this.sprite.height;
+					this.frDur = duration / frTotal;
+			};
+
+			get frame(): number {
+				return Math.floor(this.frCurrent);
+			}
+			set frame(val: number) {
+				this.frCurrent = val;
+			}
+			
+			/**
+				Draw the sprite to the canvas at the point { canX, canY }.
+				ang may be provided to rotate the sprite by the given angle.
+				scale can be a single number to scale x and y equally, or an array of [xScale, yScale];
+			*/
+			public draw(
+				ctx: CanvasRenderingContext2D,
+				canX: number,
+				canY: number,
+				ang: number = 0,
+				scale: number | number[] = [1, 1]
+			): void {
+				if (typeof scale === 'number') {
+					scale = [scale, scale];
+				}
+					ctx.save();
+						ctx.translate(canX + (this.width / 2), canY + (this.height / 2));
+						ctx.scale(scale[0], scale[1]);
+						ctx.rotate(ang);
+						let currentFrame = Math.floor(this.frCurrent) * this.width;
+						if (this.reversed) {
+								currentFrame = this.frTotal - currentFrame;
+						}
+						ctx.drawImage(
+								this.sprite,
+								currentFrame, 0,
+								this.width, this.height,
+								-this.width / 2, -this.height / 2,
+								this.width,this.height
+						);
+						if (this.frDur > 0 && !this.paused) {
+								this.frCurrent += this.frDur;
+								if (this.frCurrent >= this.frTotal) {
+										this.frCurrent = 0;
+								}
+						}
+					ctx.restore();
+			};
+
+			/** Sets number of game frames animation will last for
+					If perFrame, sets number of game frames a single frame of sprite sheet will last for
+			*/
+			public setDuration(frames: number, perFrame: boolean = false) {
+					this.frDur = perFrame ? frames : frames / this.frTotal;
+			}
+
+			/** Play/pause animation.
+					Will toggle to opposite of current state if play is not provided.
+			*/
+			public toggle(play?: boolean) {
+					if (typeof play === 'undefined') {
+							this.paused = !this.paused;
+					} else {
+							this.paused = !play;
+					} 
+
+			};
+
+			/** Reverse direction of animation.
+					Will toggle to opposite of current direction if runBackwards is not provided.
+			*/
+			public reverse(runBackwards?:boolean) {
+					if (typeof runBackwards === 'undefined') {
+							this.reversed = !this.reversed;
+					} else {
+							this.reversed = runBackwards;
+					}
+			};
+	};
+
+
+	//
+	// Class: Vector Sprite
+	//
+	/** Class for vector graphic sprites */
+	export class VectorSprite implements Sprite {
+			private fr        : number = 0;
+			private paused : boolean = false;
+			/** Animation lifecycle hook to run after animation completes a loop */
+			public onEnd     : () => void = () => {};
+
+			/** Sprite is provided as a draw function with a series of canvas draw commands
+					keyFrameSet contains a list of keyframes whose variables will be interpolated based on the current frame before being provided to the draw function
+					duration is the number of game frame animation will last; may be a fraction.
+			*/
+			constructor(
+					public drawFunction: drawFunction,
+					public keyframeSet: keyframeSet = null,
+					public duration: number = 30
+			) {
+			};
+
+			/** Draw the sprite to the canvas at the point { canX, canY }.
+					Ang may be provided to rotate the sprite by the given angle.
+			*/
+			public draw(ctx: CanvasRenderingContext2D, x: number, y: number, ang: number = 0) {
+					ctx.save();
+							ctx.translate(x, y);
+							ctx.rotate(ang);
+							this.drawFunction(this.keyframeSet ? tween(this.keyframeSet, this.fr) : null, ctx);
+					ctx.restore();
+
+					if (this.paused) {
+							return;
+					}
+
+					this.fr += (1 / this.duration) * Engine.getDelta();
+					
+					if (this.fr > 1 || this.fr < 0) {
+							this.fr = (this.fr + 1) % 1;
+							this.onEnd();
+					}
+			};
+
+			/** Sets number of game frames to display animation for */
+			public setDuration(frames: number) {
+					this.duration = this.duration < 0 ? frames * -1 : frames;
+			}
+
+			/** Play/pause animation.
+					Will toggle to opposite of current state if play is not provided.
+			*/
+			public toggle(play?: boolean ) {
+					if (typeof play === 'undefined') {
+							this.paused = !this.paused;
+					} else {
+							this.paused = !play;
+					}
+			};
+
+			/** Reverse direction of animation.
+					Will toggle to opposite of current direction if runBackwards is not provided.
+			*/
+			public reverse(runBackwards?:boolean) {
+					if (
+							(typeof runBackwards === 'undefined') ||
+							(this.duration < 0 && !runBackwards) ||
+							(this.duration > 0 && runBackwards)
+					) {
+							this.duration *= -1;
+					}
+			};
+	};
+
+	//
+	// Class: Dynamic Vector Sprite
+	//
+	// export class DynamicVectorSprite implements ISprite {
+	//     public fr        : number = 0;
+	//     public duration  : number;
+	//     public onEnd     : ()=>void = ()=>{};
+	//     public currentState  : string;
+	//     public currentAction : string;
+	//     private state    : spriteState;
+	//     private action   : spriteState = null;
+	//     private isPaused : boolean = false;
+
+	//     constructor(
+	//         public elements : { [element: string] : drawFunction },
+	//         public states   : { [state: string]   : spriteState  },
+	//         public actions  : { [action: string]  : spriteState  }
+	//     ) {
+	//         for (let s in states) {
+	//             states[s].onEnd = states[s].onEnd || (() => {});
+	//         }
+	//         for (let a in actions) {
+	//             actions[a].fr = 0;
+	//             actions[a].onEnd = actions[a].onEnd || (() => {});
+	//         }
+	//         this.currentState = Object.keys(states)[0];
+	//         this.state = states[this.currentState];
+	//         this.duration = this.state.duration;
+	//     };
+
+	//     public draw(ctx: CanvasRenderingContext2D, x: number, y: number, ang: number = 0) {
+	//         ctx.save();
+	//             ctx.translate(x, y);
+	//             ctx.rotate(ang);
+	//             for (let el in this.elements) {
+	//                 let props;
+	//                 if (this.action && this.action.elements[el]) {
+	//                     props = tween(this.action.elements[el], this.action.fr);
+	//                 }
+	//                 if (this.state.elements[el]) {   
+	//                     let stateProps = tween(this.state.elements[el], this.fr);
+	//                     if (!props) {
+	//                         props = stateProps;
+	//                     } else {
+	//                         for (let p in stateProps) {
+	//                             if (!props[p]) {
+	//                                 props[p] = stateProps[p];
+	//                             }
+	//                         }
+	//                     }
+	//                 }
+	//                 if (props) {
+	//                     this.elements[el](props, ctx); 
+	//                 }
+	//             }
+	//         ctx.restore();
+
+	//         if (!this.isPaused) {
+	//             if (this.duration) {
+	//                 this.fr += (1 / this.duration) * Engine.getDelta();
+	//                 if (this.fr > 1 || this.fr < 0) {
+	//                     this.fr = (this.fr + 1) % 1;
+	//                     this.state.onEnd();
+	//                     this.onEnd();
+	//                 }
+	//             }
+	//             if (this.action) {
+	//                 this.action.fr += (1 / this.action.duration) * Engine.getDelta();
+	//                 if (this.action.fr > 1 || this.action.fr < 0) {
+	//                     if (this.action.iteration > 1) {
+	//                         this.action.iteration--;
+	//                     } else {
+	//                         if (this.action.iteration === -1) {
+	//                             this.action.onEnd();
+	//                         } else {
+	//                             this.action.onEnd();
+	//                             this.action = null;
+	//                             this.currentAction = null;
+	//                         }
+	//                     }
+	//                 }
+	//             }
+	//         }
+	//     };
+
+	//     /** Sets number of game frames to display sprite animation for */
+	//     public setDuration(frames: number) {
+	//         this.duration = frames;
+	//     }
+
+	//     public changeState(state: string, setFrame: number = -1, transition: number = 5, ease: string = 'sine'): void {
+	//         if (this.currentState === state && setFrame === -1) {
+	//             return;
+	//         }
+	//         this.currentState = state;
+
+	//         if (transition) {
+	//             let nextState = this.states[state],
+	//                 endFrame;
+	//             if (nextState.duration) {
+	//                 endFrame = setFrame === -1 ? (1 + this.fr + (transition / nextState.duration)) % 1 : setFrame;
+	//             } else {
+	//                 endFrame = 0;
+	//             }
+	//             let transState = {
+	//                 duration : transition,
+	//                 onEnd    : this.setState.bind(this, state, endFrame),
+	//                 elements : {}
+	//             };
+	//             for (let el in nextState.elements) {
+	//                 transState.elements[el] = {};
+	//                 let startValues = this.state.elements[el] ? tween(this.state.elements[el], this.fr) : false,
+	//                     endValues   = tween(nextState.elements[el], endFrame);
+	//                 for (let param in nextState.elements[el]) {
+	//                     if (!startValues || startValues[param] === undefined) {
+	//                         transState.elements[el][param] = endValues[param];
+	//                     } else {
+	//                         transState.elements[el][param] = [[0, startValues[param], ease], [1, endValues[param], ease]];
+	//                     }
+	//                 }
+	//             }
+	//             this.state = transState;
+	//             this.duration = transition;
+	//             this.fr = 0;
+	//         } else {
+	//             this.setState(state, setFrame);
+	//         }
+	//     };
+
+	//     private setState(state: string, setFrame = -1) {
+	//         this.state = this.states[state];
+	//         if (setFrame !== -1) {
+	//             this.fr = setFrame;
+	//         }
+	//         this.duration = this.state.duration;
+	//     };
+
+	//     public trigger(action: string, iterations: number = 1, transition: number = 10, ease: string = 'sine'): void {
+	//         if (this.currentAction === action) {
+	//             return;
+	//         }
+	//         this.currentAction = action;
+
+	//         if (transition) {
+	//             let nextAction = this.actions[action];
+	//             this.action = {
+	//                 fr        : 0,
+	//                 iteration : -1,
+	//                 duration  : transition,
+	//                 onEnd     : this.setAction.bind(this, action, iterations),
+	//                 elements  : {}
+	//             };
+	//             for (let el in nextAction.elements) {
+	//                 this.action.elements[el] = {};
+	//                 let startValues = this.state.elements[el] ? tween(this.state.elements[el], this.fr) : false,
+	//                     endValues   = tween(nextAction.elements[el], 0);
+	//                 for (let param in nextAction.elements[el]) {
+	//                     if (!startValues || startValues[param] === undefined) {
+	//                         this.action.elements[el][param] = endValues[param];
+	//                     } else {
+	//                         this.action.elements[el][param] = [[0, startValues[param], ease], [1, endValues[param], ease]];
+	//                     }
+	//                 }
+	//             }
+	//         } else {
+	//             this.setAction(action, iterations)
+	//         }
+	//     };
+
+	//     private setAction(action, iterations) {
+	//         this.action = this.actions[action];
+	//         this.action.iteration = iterations;
+	//         this.action.fr = 0;
+	//     };
+
+	//     public toggle(play: boolean = null, setFrame?: number, setActionFrame?: number) {
+	//         this.isPaused = play === null ? !this.isPaused : !play;
+	//         if (setFrame || setFrame === 0) {
+	//             this.state.fr = setFrame;
+	//         }
+	//         if ((setActionFrame || setActionFrame === 0) && this.action) {
+	//             this.action.fr = setActionFrame;
+	//         }
+	//     };
+
+	//     public reverse() {
+	//         this.duration *= -1;
+	//     };
+	// };
+
+	/** Class to create a particle emitter */
+	export class Emitter extends GameObject {
+			private parts       : Particle[] = [];
+			private currentRate : number = 0;
+			private _grav       : Physics.Vec;
+			private _size       : number[] = [2, 2];
+			private _color      : string = 'dodgerblue';
+			private _lifespan   : number[] = [100, 100];
+			private _ang        : number[] = [0, 0];
+			private _power      : number[] = [1, 1];
+			private _rate       : number[] = [10, 10];
+
+	/** Angle, Power and Rate can be given as a constant or as a range to randomly choose from */
+			constructor(
+		public x      : number,
+		public y      : number,
+			ang?   : number | number[],
+			power? : number | number[],
+			rate?  : number | number[],
+	) {
+					super(x, y);
+					if (ang) {
+							this._ang = this.configRange(ang);
+					}
+					if (power) {
+							this._power = this.configRange(power);
+					}
+					if (rate) {
+							this._rate = this.configRange(rate);
+					}
+			};
+
+			set gravity(g : Physics.Vec | number) {
+					if (typeof g === 'number') {
+							this._grav = new Physics.Vec(g, Math.PI / 2, true);                    
+					} else {
+							this._grav = g as Physics.Vec;
+					}
+			}
+
+			set angle(a: number | number[]) {
+					this._ang = this.configRange(a);
+			}
+			set power(a: number | number[]) {
+					this._power = this.configRange(a);
+			}
+			set rate(a: number | number[]) {
+					this._rate = this.configRange(a);
+			}
+
+			private configRange(p): number[] {
+					if (typeof p === 'object') {
+							return [p[0], p[1] - p[0]];
+					} else {
+							return [p, 0];
+					}
+			}
+			
+			public setParticle(
+					size: number | number[],
+		color?: string,
+					lifespan?: number | number[]
+			) {
+					this._size = this.configRange(size);
+					if (color) {
+							this._color = color;
+					}
+					if (lifespan) {
+							this._lifespan = this.configRange(lifespan);
+					}
+			}
+
+	public step(dt) {
+					this.currentRate += dt;
+					if (this.currentRate > this._rate[0]) {
+							for(let i = this._rate[0]; i < this.currentRate; i += this._rate[0]) {
+									let s = this._size[0]     + (Math.random() * this._size[1]),
+											c = this._color,
+											l = this._lifespan[0] + (Math.random() * this._lifespan[1]),
+											a = this._ang[0]      + (Math.random() * this._ang[1]),
+											p = this._power[0]    + (Math.random() * this._power[1]);
+									this.parts.push(new Particle(this.x, this.y, s, c, l, new Physics.Vec(p, a, true), (this.currentRate - i) / this._rate[0]));
+							}   
+							this.currentRate %= this._rate[0];
+							this.currentRate += Math.random() * this._rate[1];
+					}
+		this.parts.forEach((p, i) => {
+			p.lifespan -= dt;
+			if (p.lifespan < 0) {
+									p.delete(this.parts, i);
+			}
+			p.step(this._grav);
+					});
 	}
 
-    //
-    // Private Methods
-    //
-    function tween(keyframeSet : keyframeSet, currentFrame : number): {[param : string] : number} {
-        let params = {};
-        for (let key in keyframeSet) {
-            if (typeof keyframeSet[key] === 'number') {
-                params[key] = keyframeSet[key];
-            } else {
-                params[key] = interpolate(keyframeSet[key], currentFrame);
-            }
-        }
-        return params;
-    };   
-
-    function interpolate(keyframe: keyframe, currentFrame: number): number {
-        let nextKeyframe = 0;
-        //TODO: optimise for number[] case
-        keyframe = keyframe as number[] | number[][] | (number|string)[][];
-        if (typeof keyframe[0] === 'number') {
-            keyframe = (keyframe as number[]).map((k, i) => [i / (keyframe as number[]).length, k]);
-        }
-
-        for(let k = 0; k < keyframe.length; k++) {
-            if (currentFrame < keyframe[k][0]) {
-                nextKeyframe = k;
-                break; 
-            }
-        }
-
-        let end   = keyframe[nextKeyframe],
-            start = keyframe[nextKeyframe === 0 ? keyframe.length - 1 : nextKeyframe - 1];
-        if (end[0] === 1) {
-            end[0] = 0.9999;
-        }
-
-        let frameDiff = (1 + end[0] - start[0]) % 1;
-        return Easings[start[2] || 'sine'](currentFrame - start[0], start[1], end[1] - start[1], frameDiff);
-    };
-
-    //
-    // Easing Functions
-    //
-    const Easings = {
-        linear:     (t, b, c, d) => b + (c * (t / d)),
-        sine:       (t, b, c, d) => -c/2 * (Math.cos(Math.PI*t/d) - 1) + b,
-        cubic:      (t, b, c, d) => (t/=d/2) < 1 ? c/2*t*t*t + b : c/2*((t-=2)*t*t + 2) + b,
-        quad:       (t, b, c, d) => (t/=d/2) < 1 ? c/2*t*t + b : -c/2 * ((--t)*(t-2) - 1) + b,
-        quart:      (t, b, c, d) => (t/=d/2) < 1 ? c/2*t*t*t*t + b : -c/2 * ((t-=2)*t*t*t - 2) + b,
-        quint:      (t, b, c, d) => (t/=d/2) < 1 ? c/2*t*t*t*t*t + b : c/2*((t-=2)*t*t*t*t + 2) + b,
-        expo:       (t, b, c, d) => {
-                        if (t==0) return b;
-                        if (t==d) return b+c;
-                        if ((t/=d/2) < 1) return c/2 * Math.pow(2, 10 * (t - 1)) + b;
-                        return c/2 * (-Math.pow(2, -10 * --t) + 2) + b;
-                    },
-        back:       (t, b, c, d) =>  (t/=d/2) < 1 ? c/2*(t*t*((3.6)*t - 2.6)) + b : c/2*((t-=2)*t*(3.6*t + 2.6) + 2) + b,
-        bounce:     (t, b, c, d) => t < d/2 ? Easings.bounceIn(t*2, 0, c, d) * .5 + b : Easings.bounceOut(t*2-d, 0, c, d) * .5 + c*.5 + b,
-        elastic:    (t, b, c, d) => {
-                        var s=1.70158;var p=0;var a=c;
-                        if (t==0) return b;  if ((t/=d/2)==2) return b+c;  if (!p) p=d*(.3*1.5);
-                        if (a < Math.abs(c)) { a=c; var s=p/4; }
-                        else var s = p/(2*Math.PI) * Math.asin (c/a);
-                        if (t < 1) return -.5*(a*Math.pow(2,10*(t-=1)) * Math.sin( (t*d-s)*(2*Math.PI)/p )) + b;
-                        return a*Math.pow(2,-10*(t-=1)) * Math.sin( (t*d-s)*(2*Math.PI)/p )*.5 + c + b;
-                    },
-        circular:   (t, b, c, d) => (t/=d/2) < 1 ? -c/2 * (Math.sqrt(1 - t*t) - 1) + b : c/2 * (Math.sqrt(1 - (t-=2)*t) + 1) + b,
-        sineIn:     (t, b, c, d) => -c * Math.cos(t/d * (Math.PI/2)) + c + b,
-        cubicIn:    (t, b, c, d) => c*(t/=d)*t*t + b,
-        quadIn:     (t, b, c, d) => c*(t/=d)*t + b,
-        quartIn:    (t, b, c, d) => c*(t/=d)*t*t*t + b,
-        expoIn:     (t, b, c, d) => (t==0) ? b : c * Math.pow(2, 10 * (t/d - 1)) + b,
-        circularIn: (t, b, c, d) => -c * (Math.sqrt(1 - (t/=d)*t) - 1) + b,
-        backIn:     (t, b, c, d) => c*(t/=d)*t*(2.7*t - 1.7) + b,
-        bounceIn:   (t, b, c, d) => c - Easings.bounceOut(d-t, 0, c, d) + b,
-        elasticIn:  (t, b, c, d) => {
-                        var s=1.70158;var p=0;var a=c;
-                        if (t==0) return b;  if ((t/=d)==1) return b+c;  if (!p) p=d*.3;
-                        if (a < Math.abs(c)) { a=c; var s=p/4; }
-                        else var s = p/(2*Math.PI) * Math.asin (c/a);
-                        return -(a*Math.pow(2,10*(t-=1)) * Math.sin( (t*d-s)*(2*Math.PI)/p )) + b;
-                    },
-        sineOut:    (t, b, c, d) => c * Math.sin(t/d * (Math.PI/2)) + b,
-        cubicOut:   (t, b, c, d) => c*((t=t/d-1)*t*t + 1) + b,
-        quadOut:    (t, b, c, d) => -c *(t/=d)*(t-2) + b,
-        quartOut:   (t, b, c, d) => -c * ((t=t/d-1)*t*t*t - 1) + b,
-        expoOut:    (t, b, c, d) => (t==d) ? b+c : c * (-Math.pow(2, -10 * t/d) + 1) + b,
-        circularOut:(t, b, c, d) => c * Math.sqrt(1 - (t=t/d-1)*t) + b,
-        backOut:    (t, b, c, d) => c*((t=t/d-1)*t*(2.7*t + 1.7) + 1) + b,
-        bounceOut:  (t, b, c, d) => {
-                        if ((t/=d) < (1/2.75)) {
-                            return c*(7.5625*t*t) + b;
-                        } else if (t < (2/2.75)) {
-                            return c*(7.5625*(t-=(1.5/2.75))*t + .75) + b;
-                        } else if (t < (2.5/2.75)) {
-                            return c*(7.5625*(t-=(2.25/2.75))*t + .9375) + b;
-                        } else {
-                            return c*(7.5625*(t-=(2.625/2.75))*t + .984375) + b;
-                        }
-                    },
-        elasticOut:(t, b, c, d) => {
-                        var s=1.70158;var p=0;var a=c;
-                        if (t==0) return b;  if ((t/=d)==1) return b+c;  if (!p) p=d*.3;
-                        if (a < Math.abs(c)) { a=c; var s=p/4; }
-                        else var s = p/(2*Math.PI) * Math.asin (c/a);
-                        return a*Math.pow(2,-10*t) * Math.sin( (t*d-s)*(2*Math.PI)/p ) + c + b;
-                    }
-    };
+	public draw(ctx, dt) {
+		ctx.beginPath();
+					this.parts.forEach(p => {
+							p.draw(ctx);
+					});
+					ctx.fill();
+	}
 }
+
+class Particle {
+			private opacity: number = 1;
+			public draw: (ctx: CanvasRenderingContext2D)=>void;
+
+	constructor (
+					private x           : number,
+					private y           : number,
+		private size        : number = 2,
+		private color       : string = 'black',
+		public  lifespan    : number = 1000,
+					private velocity    : Physics.Vec,
+									offset      : number = 1
+	) {
+		if (!velocity) {
+			this.velocity = new Physics.Vec(0, 0);
+					}
+					this.x += this.velocity.scale(offset).x - (this.size / 2);
+					this.y += this.velocity.scale(offset).y - (this.size / 2);
+
+					if (this.size <= 2) {
+							this.draw = (ctx) => {
+									ctx.moveTo(this.x, this.y);
+									ctx.rect(this.x, this.y, this.size, this.size);
+									if (this.opacity < 1) {
+											ctx.globalAlpha = this.opacity;
+									}
+									if (ctx.strokeStyle !== this.color) {
+											ctx.strokeStyle = this.color;
+											ctx.stroke();
+											ctx.beginPath();
+									}
+									ctx.globalAlpha = 1;
+							}
+					} else {
+							this.draw = (ctx) => {
+									ctx.moveTo(this.x, this.y);
+									ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+									if (this.opacity < 1) {
+											ctx.globalAlpha = this.opacity;
+									}
+									if (ctx.fillStyle !== this.color) {
+											ctx.fillStyle = this.color;
+											ctx.fill();
+											ctx.beginPath();
+									}
+									ctx.globalAlpha = 1;
+							}
+					}
+	};
+
+	public step(gravity?: Physics.Vec) {
+					if (gravity) {
+							this.velocity = this.velocity.add(gravity);
+					}
+		this.x += this.velocity.x;
+					this.y += this.velocity.y;
+			}
+			
+			public delete(parts, i) {
+					this.opacity -= 0.2;
+					if (this.opacity <= 0)
+					parts.splice(i, 1);
+			}
+}
+
+	//
+	// Private Methods
+	//
+	function tween(keyframeSet : keyframeSet, currentFrame : number): {[param : string] : number} {
+			let params = {};
+			for (let key in keyframeSet) {
+					if (typeof keyframeSet[key] === 'number') {
+							params[key] = keyframeSet[key];
+					} else {
+							params[key] = interpolate(keyframeSet[key], currentFrame);
+					}
+			}
+			return params;
+	};   
+
+	function interpolate(keyframe: number[] | number[][] | (number|string)[][], currentFrame: number): number {
+			let nextKeyframe = 0;
+			//TODO: optimise for number[] case
+			keyframe = keyframe as number[] | number[][] | (number|string)[][];
+			if (typeof keyframe[0] === 'number') {
+					keyframe = (keyframe as number[]).map((k, i) => [i / (keyframe as number[]).length, k]);
+			}
+
+			for(let k = 0; k < keyframe.length; k++) {
+					if (currentFrame < keyframe[k][0]) {
+							nextKeyframe = k;
+							break; 
+					}
+			}
+
+			let end   = keyframe[nextKeyframe],
+					start = keyframe[nextKeyframe === 0 ? keyframe.length - 1 : nextKeyframe - 1];
+			if (end[0] === 1) {
+					end[0] = 0.9999;
+			}
+
+			let frameDiff = (1 + end[0] - start[0]) % 1;
+			return Easings[start[2] || 'sine'](currentFrame - start[0], start[1], end[1] - start[1], frameDiff);
+	};
+
+	//
+	// Easing Functions
+	//
+	const Easings = {
+			linear:     (t, b, c, d) => b + (c * (t / d)),
+			sine:       (t, b, c, d) => -c/2 * (Math.cos(Math.PI*t/d) - 1) + b,
+			cubic:      (t, b, c, d) => (t/=d/2) < 1 ? c/2*t*t*t + b : c/2*((t-=2)*t*t + 2) + b,
+			quad:       (t, b, c, d) => (t/=d/2) < 1 ? c/2*t*t + b : -c/2 * ((--t)*(t-2) - 1) + b,
+			quart:      (t, b, c, d) => (t/=d/2) < 1 ? c/2*t*t*t*t + b : -c/2 * ((t-=2)*t*t*t - 2) + b,
+			quint:      (t, b, c, d) => (t/=d/2) < 1 ? c/2*t*t*t*t*t + b : c/2*((t-=2)*t*t*t*t + 2) + b,
+			expo:       (t, b, c, d) => {
+											if (t==0) return b;
+											if (t==d) return b+c;
+											if ((t/=d/2) < 1) return c/2 * Math.pow(2, 10 * (t - 1)) + b;
+											return c/2 * (-Math.pow(2, -10 * --t) + 2) + b;
+									},
+			back:       (t, b, c, d) =>  (t/=d/2) < 1 ? c/2*(t*t*((3.6)*t - 2.6)) + b : c/2*((t-=2)*t*(3.6*t + 2.6) + 2) + b,
+			bounce:     (t, b, c, d) => t < d/2 ? Easings.bounceIn(t*2, 0, c, d) * .5 + b : Easings.bounceOut(t*2-d, 0, c, d) * .5 + c*.5 + b,
+			elastic:    (t, b, c, d) => {
+											var s=1.70158;var p=0;var a=c;
+											if (t==0) return b;  if ((t/=d/2)==2) return b+c;  if (!p) p=d*(.3*1.5);
+											if (a < Math.abs(c)) { a=c; var s=p/4; }
+											else var s = p/(2*Math.PI) * Math.asin (c/a);
+											if (t < 1) return -.5*(a*Math.pow(2,10*(t-=1)) * Math.sin( (t*d-s)*(2*Math.PI)/p )) + b;
+											return a*Math.pow(2,-10*(t-=1)) * Math.sin( (t*d-s)*(2*Math.PI)/p )*.5 + c + b;
+									},
+			circular:   (t, b, c, d) => (t/=d/2) < 1 ? -c/2 * (Math.sqrt(1 - t*t) - 1) + b : c/2 * (Math.sqrt(1 - (t-=2)*t) + 1) + b,
+			sineIn:     (t, b, c, d) => -c * Math.cos(t/d * (Math.PI/2)) + c + b,
+			cubicIn:    (t, b, c, d) => c*(t/=d)*t*t + b,
+			quadIn:     (t, b, c, d) => c*(t/=d)*t + b,
+			quartIn:    (t, b, c, d) => c*(t/=d)*t*t*t + b,
+			expoIn:     (t, b, c, d) => (t==0) ? b : c * Math.pow(2, 10 * (t/d - 1)) + b,
+			circularIn: (t, b, c, d) => -c * (Math.sqrt(1 - (t/=d)*t) - 1) + b,
+			backIn:     (t, b, c, d) => c*(t/=d)*t*(2.7*t - 1.7) + b,
+			bounceIn:   (t, b, c, d) => c - Easings.bounceOut(d-t, 0, c, d) + b,
+			elasticIn:  (t, b, c, d) => {
+											var s=1.70158;var p=0;var a=c;
+											if (t==0) return b;  if ((t/=d)==1) return b+c;  if (!p) p=d*.3;
+											if (a < Math.abs(c)) { a=c; var s=p/4; }
+											else var s = p/(2*Math.PI) * Math.asin (c/a);
+											return -(a*Math.pow(2,10*(t-=1)) * Math.sin( (t*d-s)*(2*Math.PI)/p )) + b;
+									},
+			sineOut:    (t, b, c, d) => c * Math.sin(t/d * (Math.PI/2)) + b,
+			cubicOut:   (t, b, c, d) => c*((t=t/d-1)*t*t + 1) + b,
+			quadOut:    (t, b, c, d) => -c *(t/=d)*(t-2) + b,
+			quartOut:   (t, b, c, d) => -c * ((t=t/d-1)*t*t*t - 1) + b,
+			expoOut:    (t, b, c, d) => (t==d) ? b+c : c * (-Math.pow(2, -10 * t/d) + 1) + b,
+			circularOut:(t, b, c, d) => c * Math.sqrt(1 - (t=t/d-1)*t) + b,
+			backOut:    (t, b, c, d) => c*((t=t/d-1)*t*(2.7*t + 1.7) + 1) + b,
+			bounceOut:  (t, b, c, d) => {
+											if ((t/=d) < (1/2.75)) {
+													return c*(7.5625*t*t) + b;
+											} else if (t < (2/2.75)) {
+													return c*(7.5625*(t-=(1.5/2.75))*t + .75) + b;
+											} else if (t < (2.5/2.75)) {
+													return c*(7.5625*(t-=(2.25/2.75))*t + .9375) + b;
+											} else {
+													return c*(7.5625*(t-=(2.625/2.75))*t + .984375) + b;
+											}
+									},
+			elasticOut:(t, b, c, d) => {
+											var s=1.70158;var p=0;var a=c;
+											if (t==0) return b;  if ((t/=d)==1) return b+c;  if (!p) p=d*.3;
+											if (a < Math.abs(c)) { a=c; var s=p/4; }
+											else var s = p/(2*Math.PI) * Math.asin (c/a);
+											return a*Math.pow(2,-10*t) * Math.sin( (t*d-s)*(2*Math.PI)/p ) + c + b;
+									}
+	};
+}
+
 import { Engine } from './Engine';
 import { GameObject } from './Common';
+import { World } from './World';
 import { Graphics } from './Graphics';
 
 /** This module provides an interface for user inputs */
 export module Input {
-    //
-    // Types / Interfaces
-    //
-    /** Private: to store cursor position */
-    type Point = {
-        x : number;
-        y : number;
-    };
 
-    type ClickableObject = {
-        obj: GameObject;
-        x0: number;
-        x1: number;
-        y0: number;
-        y1: number;
-        circ: boolean;
-    };
+	//
+	// Types / Interfaces
+	//
+	
+	type ClickableObject = {
+		obj	: GameObject;
+		x0	: number;
+		x1	: number;
+		y0	: number;
+		y1	: number;
+		circ: boolean;
+	};
 
-    /** Private: Describes state of keyboard input */
-    interface KeyBoard {
-        down    : string;
-        up      : string;
-        pressed : string[];
-    };
+	/** Private: Describes state of keyboard input */
+	interface KeyBoard {
+		down    : string;
+		up      : string;
+		pressed : string[];
+	};
 
-    /** Private: Describes single mouse button state */
-    interface MouseButton {
-        down       : boolean;
-        up         : boolean;
-        doubleUp   : boolean;
-        pressed    : boolean;
-        drag       : boolean;
-        startDrag  : boolean;
-        endDrag    : boolean;
-        dragging   : boolean;
-        dragPts    : Point[];
-    };
+	/** Private: Describes single mouse button state */
+	interface MouseButton {
+		down       : boolean;
+		up         : boolean;
+		doubleUp   : boolean;
+		pressed    : boolean;
+		drag       : boolean;
+		startDrag  : boolean;
+		endDrag    : boolean;
+		dragging   : boolean;
+		dragPts    : {x: number, y: number}[];
+	};
 
-    /** Describes current state of mouse input */
-    export interface Mouse extends Point {
-        left  : MouseButton;
-        right : MouseButton;
-    };
+	/** Describes current state of mouse input */
+	export interface Mouse {
+		x: number,
+		y: number,
+		left  : MouseButton;
+		right : MouseButton;
+	};
 
-    //
-    // Private Variables
-    //
-    const clickCode: string[] = ['left', 'middle', 'right'];
-    let dragCheck = {
-            tolerance : 40,
-            originX   : 0,
-            originY   : 0,
-            dragPts   : []
-        },
-        dblClickWait : number = 500,
-        customCursor : (ctx: CanvasRenderingContext2D, delta: number) => void,
-        clickableObjects: ClickableObject[] = [];
 
-    //
-    // Public Variables
-    //
-    export let
-        /** Current state of mouse input */
-        mouse: Mouse = {
-            x:    0,
-            y:    0,
-            left: {
-                down       : false,
-                up         : false,
-                doubleUp   : false,
-                pressed    : false,
-                drag       : false,
-                startDrag  : false,
-                endDrag    : false,
-                dragging   : false,
-                dragPts    : []
-            },
-            right: {
-                down       : false,
-                up         : false,
-                doubleUp   : false,
-                pressed    : false,
-                drag       : false,
-                startDrag  : false,
-                endDrag    : false,
-                dragging   : false,
-                dragPts    : []
-            }
-        },
+	//
+	// Private Variables
+	//
+	const CLICKCODE: string[] = ['left', 'middle', 'right'];
+	let
+		dragCheck = {
+			tolerance : 40,
+			originX   : 0,
+			originY   : 0,
+			dragPts   : []
+		},
+		dblClickWait : number = 500,
+		customCursor : (ctx: CanvasRenderingContext2D, delta: number) => void,
+		clickableObjects: ClickableObject[] = [];
 
-        /**
-            Current state of keyboard input
-            Pressed stores names of all keys currently pressed
-        */
-        key: KeyBoard = {
-            up      : null,
-            down    : null,
-            pressed : []
-        };
 
-    //
-    // Setters / Getters
-    //
-    /** Sets number of pixels cursor must move while pressed before drag event is triggered */
-    export function setDragTolerance(tolerance: number): void {
-        dragCheck.tolerance = tolerance;
-    };
-    /** Sets maximum milliseconds between clicks in a double click in order for event to be trigged */
-    export function setdoubleClickWait(v: number): void {
-        dblClickWait = v;
-    };
+	//
+	// Public Variables
+	//
 
-    //
-    // Public Methods
-    //
-    export function init(): void {
-        window.addEventListener('mousemove', onMouseMove.bind(this));
-        window.addEventListener('mousedown', onMouseDown.bind(this));
-        window.addEventListener('mouseup'  , onMouseUp.bind(this));
+	export let
+		/** Current state of mouse input */
+		mouse: Mouse = {
+			x:    0,
+			y:    0,
+			left: {
+				down       : false,
+				up         : false,
+				doubleUp   : false,
+				pressed    : false,
+				drag       : false,
+				startDrag  : false,
+				endDrag    : false,
+				dragging   : false,
+				dragPts    : []
+			},
+			right: {
+				down       : false,
+				up         : false,
+				doubleUp   : false,
+				pressed    : false,
+				drag       : false,
+				startDrag  : false,
+				endDrag    : false,
+				dragging   : false,
+				dragPts    : []
+			}
+		},
 
-        window.onkeydown = onKeyDown.bind(this);
-        window.onkeyup   = onKeyUp.bind(this);
+		/**
+			Current state of keyboard input
+			Pressed stores names of all keys currently pressed
+		*/
+		key: KeyBoard = {
+			up      : null,
+			down    : null,
+			pressed : []
+		};
 
-        toggleContextMenu(false);
-    };
 
-    export function step(): void {
-        emitClickableObjectEvents();
+	//
+	// Public Methods
+	//
 
-        resetMouseButton(mouse.left);
-        resetMouseButton(mouse.right);
+	export function init(): void {
+		window.addEventListener('mousemove', onMouseMove.bind(this));
+		window.addEventListener('mousedown', onMouseDown.bind(this));
+		window.addEventListener('mouseup'  , onMouseUp.bind(this));
 
-        key.down = null;
-        key.up   = null;
-    };
+		window.onkeydown = onKeyDown.bind(this);
+		window.onkeyup   = onKeyUp.bind(this);
 
-    /**
-        Enable/Disable browser context menu on right click
-        Disabled by default
-     */
-    export function toggleContextMenu(show: boolean = true): void {
-        if (show) {
-            window.oncontextmenu = function (e) { };
-        } else {
-            window.oncontextmenu = function (e) {
-                e.preventDefault();
-            };
-        }
-    };
+		toggleContextMenu(false);
+	};
 
-    /** Returns true is any of the key names provided are currently pressed  */
-    export function checkKey(...keys: string[]): boolean | object {
-        return keys.some(k => key.pressed.indexOf(k) !== -1);
-    };
+	export function step(): void {
+		emitClickableObjectEvents();
 
-    /**
-        Sets cursor type if CSS cursor name is provided
-        Sets a custom cursor to be rendered if draw function is provided
-    */
-    export function setCursor(cursor: (ctx: CanvasRenderingContext2D, delta: number)=>void | string): void {
-        if (typeof cursor === 'string') {
-            (Engine.getCanvasEl() as HTMLElement).style.cursor = cursor;
-        } else {
-            (Engine.getCanvasEl() as HTMLElement).style.cursor = 'none';
-            customCursor = cursor;
-        }
-    };
+		resetMouseButton(mouse.left);
+		resetMouseButton(mouse.right);
 
-    export function drawCursor(ctx: CanvasRenderingContext2D, delta: number): void {
-        if (customCursor) {
-            ctx.save();
-                ctx.translate(mouse.x, mouse.y);
-                customCursor(ctx, delta);
-            ctx.restore();
-        }
-    };
+		key.down = null;
+		key.up   = null;
+	};
 
-    /**
-        Registers game object with relative hit box in which to listener for mouseover events
-        If circular, hit box will be a circle
-        If centered, box will be centered on object.x, object.y; otherwise, will be aligned with top left
-    */
-    export function setMouseListener(g: GameObject, width: number, height: number, circular: boolean = false, centered: boolean = false) {
-        let x0, y0, x1, y1 = 0;
-        if (circular) {
-            x1 = y1 = width / 2;
-            if (!centered) {
-                x0 = y0 = width / 2;
-            }
-        } else if (centered) {
-            x0 = -width / 2;
-            x1 = width / 2;
-            y0 = -height / 2;
-            y1 = height /2;
-        } else {
-            x1 = width;
-            y1 = height;
-        }
-        clickableObjects.push({
-            obj: g,
-            x0: x0,
-            x1: x1,
-            y0: y0,
-            y1: y1,
-            circ: circular
-        });
-    };
+	/** Sets number of pixels cursor must move while pressed before drag event is triggered */
+	export function setDragTolerance(tolerance: number): void {
+		dragCheck.tolerance = tolerance;
+	};
+	/** Sets maximum milliseconds between clicks in a double click in order for event to be trigged */
+	export function setDoubleClickWait(v: number): void {
+		dblClickWait = v;
+	};
 
-    /** Calls setMouseListener with width and height of provided sprite */
-    export function setMouseListenerFromSprite(g: GameObject, sprite: Graphics.Sprite, centered: boolean = false) {
-        setMouseListener(g, sprite.width, sprite.height, false, centered);
-    };
+	/**
+		Enable/Disable browser context menu on right click
+		Disabled by default
+	 */
+	export function toggleContextMenu(show: boolean = true): void {
+		if (show) {
+			window.oncontextmenu = function (e) { };
+		} else {
+			window.oncontextmenu = function (e) {
+				e.preventDefault();
+			};
+		}
+	};
 
-    //
-    // Private Methods
-    //
-    function onMouseDown(e: MouseEvent): void {
-        dragCheck.originX = e.clientX;
-        dragCheck.originY = e.clientY;
-        mouse[clickCode[e.button]].pressed = true;
-        mouse[clickCode[e.button]].down    = true;
-    };
+	/** Returns true is any of the key names provided are currently pressed  */
+	export function isPressed(...keys: string[]): boolean | object {
+		return keys.some(k => key.pressed.indexOf(k) !== -1);
+	};
 
-    function onMouseUp(e: MouseEvent): void {
-        let b = mouse[clickCode[e.button]];
+	/** Gets position of mouse within the current view of an area */
+	export function mouseInArea(a?: World.Area): {x: number, y: number} {
+		let view = a ? a.view : World.area.view;
+		return {
+			x: (mouse.x / view.z) + view.x,
+			y: (mouse.y / view.z) + view.y
+		};
+	}
 
-        b.pressed = false;
-        b.up      = true;
+	/**
+		Sets cursor type if CSS cursor name is provided
+		Sets a custom cursor to be rendered if draw function is provided
+	*/
+	export function setCursor(cursor: ((ctx: CanvasRenderingContext2D, delta: number)=>void) | string): void {
+		if (typeof cursor === 'string') {
+			(Engine.getCanvasEl() as HTMLElement).style.cursor = cursor;
+		} else {
+			(Engine.getCanvasEl() as HTMLElement).style.cursor = 'none';
+			customCursor = cursor;
+		}
+	};
 
-        if (b.dragging) {
-            b.endDrag  = true;
-            b.dragging = false;
-        }
+	export function drawCursor(ctx: CanvasRenderingContext2D, delta: number): void {
+		if (customCursor) {
+			ctx.save();
+				ctx.translate(mouse.x, mouse.y);
+				customCursor(ctx, delta);
+			ctx.restore();
+		}
+	};
 
-        if (b.dblCheck) {
-            b.doubleUp = true; 
-            b.dblCheck = false;
-        } else {
-            b.dblCheck = true;
-            setTimeout(() => b.dblCheck = false, dblClickWait);
-        }
-    };
+	/**
+		Registers game object with relative hit box in which to listener for mouseover events
+		If circular, hit box will be a circle
+		If centered, box will be centered on object.x, object.y; otherwise, will be aligned with top left
+	*/
+	export function setMouseListener(
+		g: GameObject,
+		width: number,
+		height: number,
+		circular: boolean = false,
+		centered: boolean = false
+	): void {
+		let x0, y0, x1, y1 = 0;
+		if (circular) {
+			x1 = y1 = width / 2;
+			if (!centered) {
+				x0 = y0 = width / 2;
+			}
+		} else if (centered) {
+			x0 = -width / 2;
+			x1 = width / 2;
+			y0 = -height / 2;
+			y1 = height /2;
+		} else {
+			x1 = width;
+			y1 = height;
+		}
+		clickableObjects.push({
+			obj: g,
+			x0: x0,
+			x1: x1,
+			y0: y0,
+			y1: y1,
+			circ: circular
+		});
+	};
 
-    function onMouseMove(e: MouseEvent): void {
-        mouse.x = e.clientX;
-        mouse.y = e.clientY;
+	/** Calls setMouseListener with width and height of provided sprite */
+	export function setMouseListenerFromSprite(
+		g: GameObject,
+		sprite: Graphics.SpriteSheet,
+		centered: boolean = false
+	): void {
+		setMouseListener(g, sprite.width, sprite.height, false, centered);
+	};
 
-        checkDrag(mouse.left);
-        checkDrag(mouse.right);
-    };
 
-    function checkDrag(b: MouseButton): void {
-        if (b.pressed) {
-            if (!b.dragging) {
-                if (
-                    Math.sqrt(
-                        Math.pow(mouse.y - dragCheck.originY, 2) +
-                        Math.pow(mouse.x - dragCheck.originX, 2)
-                    ) > dragCheck.tolerance
-                ) {
-                    b.dragging = true;
-                    b.dragPts = [];
-                    dragCheck.dragPts.forEach(p => b.dragPts.push({ x: p.x, y: p.y }));
-                    dragCheck.dragPts = [];
-                } else {
-                    dragCheck.dragPts.push({
-                        x: mouse.x,
-                        y: mouse.y
-                    });
-                }
-            } else {
-                b.drag = true;
-                b.dragPts.push({
-                    x: mouse.x,
-                    y: mouse.y
-                });
-            }
-        }
-    };
+	//
+	// Private Methods
+	//
 
-    function resetMouseButton(b: MouseButton): void {
-        b.down       = false;
-        b.up         = false;
-        b.doubleUp   = false;
-        b.drag       = false;
-        b.startDrag  = false;
-        b.endDrag    = false;
-    };
+	function onMouseDown(e: MouseEvent): void {
+		dragCheck.originX = e.clientX;
+		dragCheck.originY = e.clientY;
+		mouse[CLICKCODE[e.button]].pressed = true;
+		mouse[CLICKCODE[e.button]].down    = true;
+	};
 
-    function onKeyDown(e: KeyboardEvent): void {
-        let keyName = e.code;
-        key.down = keyName;
-        if (key.pressed.indexOf(keyName) === -1) {
-            key.pressed.push(keyName);
-        }
-    };
+	function onMouseUp(e: MouseEvent): void {
+		let b = mouse[CLICKCODE[e.button]];
 
-    function onKeyUp(e: KeyboardEvent): void {
-        let keyName = e.code;
-        key.up = keyName;
-        key.pressed.splice(key.pressed.indexOf(keyName), 1);
-    };
+		b.pressed = false;
+		b.up      = true;
 
-    function emitClickableObjectEvents() {
-        clickableObjects.forEach(o => {
-            if (o.obj.onMouseOver) {
-                let clicked: boolean;
-                if (o.circ) {
-                    clicked =
-                        Math.sqrt(
-                            Math.pow(mouse.y - (o.obj.y + o.y0), 2) +
-                            Math.pow(mouse.x - (o.obj.x + o.x0), 2)
-                        ) < o.x1;
-                } else {
-                    clicked =
-                        o.obj.x - o.x0 < mouse.x &&
-                        o.obj.x + o.x1 > mouse.x &&
-                        o.obj.y - o.y0 > mouse.y &&
-                        o.obj.y + o.y1 > mouse.y;
-                }
-                if (clicked) {
-                    o.obj.onMouseOver.call(o.obj, mouse);
-                }
-            }
-        });
-    };
+		if (b.dragging) {
+			b.endDrag  = true;
+			b.dragging = false;
+		}
+
+		if (b.dblCheck) {
+			b.doubleUp = true; 
+			b.dblCheck = false;
+		} else {
+			b.dblCheck = true;
+			setTimeout(() => b.dblCheck = false, dblClickWait);
+		}
+	};
+
+	function onMouseMove(e: MouseEvent): void {
+		mouse.x = e.clientX;
+		mouse.y = e.clientY;
+
+		checkDrag(mouse.left);
+		checkDrag(mouse.right);
+	};
+
+	function checkDrag(b: MouseButton): void {
+		if (b.pressed) {
+			if (!b.dragging) {
+				if (
+					Math.sqrt(
+						Math.pow(mouse.y - dragCheck.originY, 2) +
+						Math.pow(mouse.x - dragCheck.originX, 2)
+					) > dragCheck.tolerance
+				) {
+					b.dragging = true;
+					b.dragPts = [];
+					dragCheck.dragPts.forEach(p => b.dragPts.push({ x: p.x, y: p.y }));
+					dragCheck.dragPts = [];
+				} else {
+					dragCheck.dragPts.push({
+						x: mouse.x,
+						y: mouse.y
+					});
+				}
+			} else {
+				b.drag = true;
+				b.dragPts.push({
+					x: mouse.x,
+					y: mouse.y
+				});
+			}
+		}
+	};
+
+	function resetMouseButton(b: MouseButton): void {
+		b.down       = false;
+		b.up         = false;
+		b.doubleUp   = false;
+		b.drag       = false;
+		b.startDrag  = false;
+		b.endDrag    = false;
+	};
+
+	function onKeyDown(e: KeyboardEvent): void {
+		key.down = e.code;
+		if (key.pressed.indexOf(e.code) === -1) {
+			key.pressed.push(e.code);
+		}
+	};
+
+	function onKeyUp(e: KeyboardEvent): void {
+		key.up = e.code;
+		key.pressed.splice(key.pressed.indexOf(e.code), 1);
+	};
+
+	function emitClickableObjectEvents() {
+		clickableObjects.forEach(o => {
+			if (o.obj.onMouseOver) {
+				let clicked: boolean;
+				if (o.circ) {
+					clicked =
+						Math.sqrt(
+							Math.pow(mouse.y - (o.obj.y + o.y0), 2) +
+							Math.pow(mouse.x - (o.obj.x + o.x0), 2)
+						) < o.x1;
+				} else {
+					clicked =
+						o.obj.x - o.x0 < mouse.x &&
+						o.obj.x + o.x1 > mouse.x &&
+						o.obj.y - o.y0 > mouse.y &&
+						o.obj.y + o.y1 > mouse.y;
+				}
+				if (clicked) {
+					o.obj.onMouseOver.call(o.obj, mouse);
+				}
+			}
+		});
+	};
 }
-// import { Engine } from './Engine';
+import { Engine } from './Engine';
+import { World } from './World';
+import { Debug } from './Debug';
 
-// module Light {
-//     //Initiate main canvas element for drawing shadows and light
-// 	var can0 = document.createElement('canvas');
-// 	var ctx0 = can0.getContext('2d');
+/** This module creates lighting effects including shadow casting, background lighting and coloured lighting */
+export module Light {
 
-// 	//Initiate working canvas one, for combining light from all sources
-// 	var can1 = document.createElement('canvas');
-// 	var ctx1 = can1.getContext('2d');
+	//
+	// Private Variables
+	//
 
-// 	//Initiate working canvas two, for drawing light from a single source
-// 	var can2 = document.createElement('canvas');
-// 	var ctx2 = can2.getContext('2d');
+	let
+		can0: HTMLCanvasElement,
+		ctx0: CanvasRenderingContext2D,
+		can1: HTMLCanvasElement,
+		ctx1: CanvasRenderingContext2D,
+		can2: HTMLCanvasElement,
+		ctx2: CanvasRenderingContext2D;
 
-// 	can0.width = can1.width = can2.width = Engine.cW;
-// 	can0.height = can1.height = can2.height = Engine.cH;
+	//
+	// Private Methods
+	//
 
+	function lightEngineInit() {
+		// Canvas for drawing the background light (shadow)
+		can0 = document.createElement('canvas');
+		ctx0 = can0.getContext('2d');
 
-// 	//
-// 	// Public Varibales
-// 	//
-//     export let
-//         S  = [],    // Sources
-//         B  = [],    // Blocks
-//         Nc = [];    // No shadow cast areas
+		// Canvas for storing the light from all sources, before removing from can0 light
+		can1 = document.createElement('canvas');
+		ctx1 = can1.getContext('2d');
 
+		// Canvas for calculating the shadows from a single source
+		can2 = document.createElement('canvas');
+		ctx2 = can2.getContext('2d');
 
-// 	//
-//     // Private Methods
-//     //
+		can0.width = can1.width = can2.width = Engine.cW;
+		can0.height = can1.height = can2.height = Engine.cH;
 
-// 	//General Math Functions
-// 	function dist(x0, y0, x1, y1) {
-// 		return Math.sqrt(((x1 - x0) * (x1 - x0)) + ((y1 - y0) * (y1 - y0)));
-// 	}
-// 	function angDiff (a0, a1) {
-// 		var a = a0 - a1;
-// 		a += (a > Math.PI) ? -2 * Math.PI : (a < -Math.PI) ? 2 * Math.PI : 0;
-// 		return a;
-// 	}
+		ctx0.imageSmoothingEnabled = false;
+		ctx1.imageSmoothingEnabled = false;
+		ctx2.imageSmoothingEnabled = false;
+	}
 
-//     //
-//     // Public Classes
-//     //
+	function angDiff(a0: number, a1: number): number {
+		let a = a0 - a1;
+		a += (a > Math.PI) ? -2 * Math.PI : (a < -Math.PI) ? 2 * Math.PI : 0;
+		return a;
+	};
 
-// 	//Light emitting object (x position, y position, brightness [radius of light reach], shade [colour of light in rgb(a)]
-// 	class Source {
-//         private shade: string;
-//         constructor(
-//             private x: number,
-//             private y: number, 
-//             private b: number
-//         ) {
-
-//         }
-
-// 		public drawLight(): void {
-// 			//corners of blocks which cast shadows
-// 			var c = [];
-
-// 			for (var i = 0; i < B.length; i++) {
-// 				if (B[i].active) {
-// 					if (B[i].shape === "rect") {
-// 						//Find shadow casting corners of rectangle
-// 						var side = 0;
-// 						if (this.x > B[i].x) {
-// 							side += 1;
-// 						}
-// 						if (this.x > B[i].x + B[i].w) {
-// 							side += 1;
-// 						}
-// 						if (this.y > B[i].y) {
-// 							side += 3;
-// 						}
-// 						if (this.y > B[i].y + B[i].h) {
-// 							side += 3;
-// 						}
-
-// 						if (side === 1 || side === 2 || side === 3 || side === 6) {
-// 							c.push({x : B[i].x, y : B[i].y});
-// 						}
-// 						if (side === 0 || side === 1 || side === 5 || side === 8) {
-// 							c.push({x : B[i].x + B[i].w, y : B[i].y});
-// 						}
-// 						if (side === 0 || side === 3 || side === 7 || side === 8) {
-// 							c.push({x : B[i].x, y : B[i].y + B[i].h});
-// 						}
-// 						if (side === 2 || side === 5 || side === 6 || side === 7) {
-// 							c.push({x : B[i].x + B[i].w, y : B[i].y + B[i].h});
-// 						}
-// 						//No shaodw if source is inside square
-// 						if (side === 4) {
-// 							c.push({x : B[i].x, y : B[i].y});
-// 							c.push({x : B[i].x, y : B[i].y});
-// 						}
-
-// 						//Add mid point for correct shadow rendering later
-// 						c.push({x : c[c.length - 1].x, y : c[c.length - 1].y});
-// 						c[c.length - 2] = {x : B[i].x + (B[i].w / 2), y : B[i].y + (B[i].h / 2)};
-// 					}
-// 					else {
-// 						//Convert sprite mask to Uint8ClampedArray [R0, G0, B0, A0, ... , Rn, Gn Bn An]
-// 						if (B[i].shape === "anim") {
-// 							ctx2.drawImage(B[i].mask, Math.floor(B[i].frNum) * B[i].w, 0, B[i].w, B[i].h, 0, 0, B[i].w, B[i].h);
-// 						} else {
-// 							ctx2.drawImage(B[i].mask, 0, 0);
-// 						}
-// 						var imgData = ctx2.getImageData(0, 0, B[i].w, B[i].h).data;
-
-// 						//Get angle between center of object and lihgt source for comparison later
-// 						var normal = Math.atan2(this.y - (B[i].y + (B[i].h / 2)), this.x - (B[i].x + (B[i].w / 2)));
-
-// 						//No shadow if light source is inside object
-// 						var pixel = (((Math.floor(this.y) - B[i].y) * B[i].w) + (Math.floor(this.x) - B[i].x)) * 4;
-// 						if (this.x - B[i].x < B[i].w && this.x - B[i].x > -1 && pixel > -1 && pixel < imgData.length && imgData[pixel + 3] > 120) {
-
-// 						} else {
-// 							//Scan all opaque pixels to find largest and smallest angle with source relative to the normal definded above
-// 							var max = -Infinity, min = Infinity, ang = 0, maxP = { x : 0, y : 0 }, minP = { x : 0, y : 0 };
-// 							for(var j = 3, x = 0, y = 0; j < imgData.length; j += 4, x += 1) {
-// 								//Reset x after each row scan
-// 								if (x === B[i].w) {
-// 									x = 0, y += 1;
-// 								}
-// 								//Only consider non-transparent pixels
-// 								if (imgData[j] > 120) {
-// 									ang = angDiff(normal, Math.atan2(this.y - (B[i].y + y), this.x - (B[i].x + x)));
-// 									if (ang > max) {
-// 										max = ang, maxP.x = x + B[i].x, maxP.y = y + B[i].y;
-// 									} else if (ang < min) {
-// 										min = ang, minP.x = x + B[i].x, minP.y = y + B[i].y;
-// 									}
-// 								}
-// 							}
-// 							c.push(minP);
-// 							c.push({x : B[i].x + (B[i].w / 2), y: B[i].y + (B[i].h / 2)});
-// 							c.push(maxP);
-// 							ctx2.clearRect(0, 0, B[i].w + 1, B[i].h + 1);
-// 						}
-// 					}
-// 					if (c.length > 0) {
-// 						//Calculate where shadow edges meet boundary of light
-// 						var ang = Math.atan2(c[c.length - 1].y - this.y, c[c.length - 1].x - this.x);
-// 						c.push({x : this.x + (this.b * 1.1 * Math.cos(ang)), y : this.y + (this.b * 1.1 * Math.sin(ang))});
-// 						ang = Math.atan2(c[c.length - 4].y - this.y, c[c.length - 4].x - this.x);
-// 						c.push({x : this.x + this.b * 1.1 * Math.cos(ang), y : this.y + this.b * 1.1 * Math.sin(ang)});
-// 					}
-// 				}
-// 			}
-
-// 			if (c.length > 0) {
-// 				//Calcualte the shape of light on working canvas
-// 				//Draw shadows
-// 				ctx2.fillStyle = 'rgba(0, 0, 0, 1)';
-// 				ctx2.beginPath();
-// 					for (var i = 0, ang0, ang1, diff; i < c.length; i += 5) {
-// 						ctx2.moveTo(c[i].x, c[i].y);
-// 						ctx2.lineTo(c[i + 1].x, c[i + 1].y);
-// 						ctx2.lineTo(c[i + 2].x, c[i + 2].y);
-// 						ctx2.lineTo(c[i + 3].x, c[i + 3].y);
-// 						ang0 = Math.atan2(c[i + 3].y - this.y, c[i + 3].x - this.x);
-// 						ang1 = Math.atan2(c[i + 4].y - this.y, c[i + 4].x - this.x);
-// 						ctx2.arc(this.x, this.y, this.b, ang0, ang1, (angDiff(ang0, ang1) > 0) ? true : false);
-// 						ctx2.lineTo(c[i].x, c[i].y);
-// 					}
-// 				ctx2.fill();
-
-// 				//Subtract block shapes from shadow
-// 				ctx2.globalCompositeOperation = 'destination-out';
-// 				for (var i = 0; i < B.length; i++) {
-// 					if (B[i].active) {
-// 						B[i].subBlock();
-// 					}
-// 				}
-// 				//Subtract no-cast regions from shadow
-// 				for (var i = 0; i < Nc.length; i++) {
-// 					Nc[i].subRegion();
-// 				}
-// 			}
-
-// 			//Draw Light emitting from source in circuler gradient, subtracting shadows
-// 			ctx2.globalCompositeOperation = 'source-out';
-// 			var grd = ctx2.createRadialGradient(this.x, this.y, 0, this.x , this.y, this.b);
-// 				grd.addColorStop(0, this.shade);
-// 				grd.addColorStop(1, 'rgba(0, 0, 0, 0)');
-// 			ctx2.fillStyle = grd;
-// 			ctx2.fillRect(this.x - this.b, this.y - this.b, this.b * 2, this.b * 2);
-
-// 			//Add light to light from other sources
-// 			ctx1.drawImage(can2, 0, 0);
-
-// 			//Reset working canvas
-// 			ctx2.globalCompositeOperation = "source-over";
-// 			ctx2.clearRect(0, 0, can2.width, can2.height);
-//         }
-//     }
-
-// 	//Light blocking object (xIn = x position, yIn = y position, shapeIn = object shape :"rect"/"anim"/"mask";
-// 	//						 if shapeIn = "rect" [p1 = width, p2 = height, p3 = opacity]
-// 	//						 if shapeIn = "anim" [p1 = mask, p2 = frame width, p3 = frame duration, p4 = opacity]
-// 	//						 else				 [p1 = opacity] )
-// 	class Block {
-//         private active: Boolean = true;
-//         private shape: string;
-//         private w: number;
-//         private h: number;
-//         private o: number;
-//         // private frNum: number;
-//         // private frDur: number;
-//         // private length: number;
-//         private mask: ImageBitmap;
-
-//         constructor(
-//             private x: number,
-//             private y: number,
-//             shape: string,
-//             p1: number | ImageBitmap,
-//             p2: number,
-//             p3?: number,
-//             p4?: number
-//         ) {
-//             if (shape === "rect") {
-//                 this.w = p1 as number;
-//                 this.h = p2;
-//                 this.o = p3;
-//             // } else if (shape === "anim") {
-//             //     this.frNum = 0;
-//             //     this.frDur = p3;
-//             //     this.length = 0;
-//             //     this.mask = p1 as ImageBitmap;
-//             //     this.w = p2;
-//             //     this.length = (p1 as ImageBitmap).width / this.w;
-//             //     this.frDur /= this.length;
-//             //     this.h = (p1 as ImageBitmap).height
-//             //     this.o = p4;
-//             } else {
-//                 this.o = p2;
-//                 this.mask = p1 as ImageBitmap;
-//                 this.w = (p1 as ImageBitmap).width;
-//                 this.h = (p1 as ImageBitmap).height;
-//             }
-//         }
-// 		//Subtract block shape from shadow
-// 		private subBlock(): void {
-// 			if (this.shape === "rect") {
-// 				ctx2.fillRect(this.x, this.y, this.w, this.h);
-// 			// } else if (this.shape === "anim") {
-// 			// 	ctx2.drawImage(this.mask, Math.floor(this.frNum) * this.w, 0, this.w, this.h, this.x, this.y, this.w, this.h);
-// 			// 	this.frNum += (dt * 17) / this.frDur;
-// 			// 	if (this.frNum > this.length)
-// 			// 		this.frNum = 0;
-// 			} else {
-// 				ctx2.drawImage(this.mask, this.x, this.y);
-// 			}
-//         }
-//     }
-
-// 	class NoCast {
-//         constructor(
-//             private x: number,
-//             private y: number,
-//             private shape: string | ImageBitmap,
-//             private w: number,
-//             private h: number
-//         ) {
-//             if (typeof shape !== 'string') {
-//                 this.w = shape.width;
-//                 this.h = shape.height;
-//             }
-//         }
-
-// 		private subRegion(): void {
-// 			if (this.shape === "rect") {
-// 				ctx2.fillRect(this.x, this.y, this.w, this.h);
-// 			} else if (this.shape === 'circ') {
-//                 ctx2.beginPath();
-//                     ctx2.arc(this.x, this.y, this.w, 0, Math.PI * 2);
-//                 ctx2.fill();
-//             } else {
-// 				ctx2.drawImage(this.shape as ImageBitmap, this.x, this.y);
-// 			}
-//         }
-//     }
+	function getAng(x: number, y: number): number {
+		return (6.2832 + Math.atan2(y, x)) % 6.2832;
+	};
 
 
-// 	//
-// 	//  Public Methods 
-// 	//
+	//
+	// Public Classes
+	//
 
-// 	//Add light source to canvas (x position, y position, brightness [radius of light reach], shade [colour of light in rgb(a)]) -> source handle
-// 	export function addSource(x, y, b, s) {
-// 		b = typeof b !== 'undefined' ? b : 150;
-//         s = typeof s !== 'undefined' ? s : 'rgba(0, 0, 0, 1)';
-//         let source = new Source(x, y, b, s);
-// 		S.push(source);
-// 		return source;
-// 	}
+	/** Light settings for an Area */
+	export class LightArea {
+		public active: boolean = true;
+		public sources: Source[] = [];
+		public blocks: Block[] = [];
 
-// 	//Add light blocker to canvas (x position, y position, object shape :"rect"/"anim"/"mask",
-// 	//						 	   rect width/mask opacity, rect height, rect opacity) -> block handle
-// 	export function addBlock(
-//         x: number,
-//         y: number, 
-//         shape: string, 
-//         p1: number | HTMLImageElement,
-//         p2: number,
-//         p3: number
-//     ) {
-// 		if (shape === "rect") {
-// 			var h, o;
-// 			if (typeof p3 === 'undefined') {
-// 				if (typeof p2 === 'undefined') {
-// 					h = p1, o = 1;
-// 				} else {
-// 					if (p2 < 1) {
-// 						h = p1, o = p2;
-// 					} else {
-// 						h = p2, o = 1;
-// 					}
-// 				}
-// 			} else {
-// 				h = p2, o = p3;
-// 			}
-// 			B.push(new Block(x, y, shape, p1, h, o));
-// 		// } else if (shape === "anim") {
-// 		// 	var o = typeof p4 !== 'undefined' ? p4 : 1;
-// 		// 	B.push(new Block(x, y, s, p1, p2, p3, o));
-// 	    } else {
-// 	    	var mask = new Image();
-// 	    	mask.src = p1 as HTMLImageElement;
-// 	    	var o = typeof p2 !== 'undefined' ? p2 : 1;
-// 	    	mask.onload = function() {
-// 				B.push(new Block(x, y, s, mask, o));
-// 			}
-// 		}
+		/*
+			bgLight is a hex value of the background light of the area, defaults to #000000ff (fully opaque black)
+			bgLight can also be a CanvasGradient, which will be used to fill the area background
+		*/
+		constructor(
+			public area: World.Area,
+			bgLight: string | CanvasGradient = '#000'
+		) {
+			if (!can1) {
+				lightEngineInit();
+			}
+			ctx0.fillStyle = bgLight;
+		}
 
-// 		return B[B.length - 1];
-// 	}
+		set bgLight(color: string | CanvasGradient) {
+			ctx0.fillStyle = color;
+		}
 
-// 	//Add region to canvas on which no shadows can be cast(x position, y position, region shape :"rect"/mask,
-// 	//						 							   rect width, rect height) -> no-cast handle
-// 	export function addNoCast(x, y, s, d1, d2) {
-// 		x += Level.x;
-// 		y += Level.y;
-// 		if (s === "rect") {
-// 			if (typeof d2 === 'undefined') {
-// 				Nc.push(new NoCast(x, y, s, d1, d1));
-// 			} else {
-// 				Nc.push(new NoCast(x, y, s, d1, d2));
-// 			}
-// 		} else {
-// 			Nc.push(new NoCast(x, y, s));
-// 		}
+		/** */
+		public addSource(source: Source | Source[]) {
+			[].concat(source).forEach(s => {
+				s.delete();
+				s.lightArea = this;
+				this.sources.push(s);
+			});
+		}
 
-// 		return Nc[Nc.length - 1];
-// 	}
+		/** */
+		public addBlock(block: Block | Block[]) {
+			[].concat(block).forEach(s => {
+				s.delete();
+				s.lightArea = this;
+				this.blocks.push(s);
+			});
+		}
 
-// 	//Call draw function of all objects
-//     export function draw() {
-// 		//Clear previous frame
-// 		ctx0.clearRect(0, 0, can.width, can.height);
-// 		ctx1.clearRect(0, 0, can1.width, can1.height);
+		public draw(ctx: CanvasRenderingContext2D) {
+			if (!this.active) {
+				return;
+			}
 
-// 		//Draw background darkness
-// 		ctx0.fillStyle = bgShade;
-// 		ctx0.fillRect(0, 0, can.width, can.height);
+			ctx1.clearRect(0, 0, can1.width, can1.height);
 
-// 		//Calculate light and shadows for each source and combine
-// 		for (var i = 0; i < S.length; i++) {
-// 			S[i].drawLight();
-// 		}
+			ctx2.save();
+				ctx2.scale(this.area.view.z, this.area.view.z);
+				ctx2.translate(-this.area.view.x, -this.area.view.y);
+				this.sources
+					.filter(s => (
+						s.active &&
+						s.x + s.rad > this.area.view.x &&
+						s.x - s.rad < this.area.view.x + this.area.view.width &&
+						s.y + s.rad > this.area.view.y &&
+						s.y - s.rad < this.area.view.y + this.area.view.height
+					))
+					.forEach(source => {
+						if (!source.castShadows) {
+							// Draw non-shadow casting lights straight to can1 to save time
+							ctx1.save();
+								ctx1.scale(this.area.view.z, this.area.view.z);
+								ctx1.translate(source.x - this.area.view.x, source.y - this.area.view.y);
+								ctx1.rotate(source.ang);
+								ctx1.globalCompositeOperation = 'soft-light';
+								ctx1.drawImage(source.mask, -source.rad, -source.rad);
+							ctx1.restore();
+						} else {
+							let nearBlocks: [Block, number][] = [],
+									sourceInBlock = false;
+							// Only draw shadows for blocks within reach of light
+							this.blocks.forEach(block => {
+								let dis =
+									Math.pow(block.x + block.maskCenter.x - source.x, 2) +
+									Math.pow(block.y + block.maskCenter.y - source.y, 2);
+								if (dis < Math.pow(source.rad + block.clipRad, 2)) {
+									// If light is within block and block has blockLightInside = true, draw no light from source
+									if (block.blockLightInside && dis < Math.pow(block.clipRad, 2)) {
+										sourceInBlock = true;
+									}
+									// Add block to array in order of distance from source to draw overlapping shadows correctly
+									for (let i = 0; i <= nearBlocks.length; i++) {
+										if (i === nearBlocks.length) {
+											nearBlocks.push([block, dis]);
+											break;
+										}
+										if (dis > nearBlocks[i][1]) {
+											nearBlocks.splice(i, 0, [block, dis]);
+											break;
+										}
+									}
+								}
+							});
+							
+							if (!sourceInBlock) {
+								ctx2.save();
+									ctx2.translate(source.x, source.y);
+									ctx2.rotate(source.ang);
+									ctx2.globalCompositeOperation = 'source-over';
+									ctx2.drawImage(source.mask, -source.rad, -source.rad);
+								ctx2.restore();
 
-// 		//Subtract all light from backgorund darkness
-// 		ctx0.globalCompositeOperation = 'destination-out';
-// 			ctx0.drawImage(can1, 0, 0);
-// 		ctx0.globalCompositeOperation = 'source-over';
+								nearBlocks.map(b => b[0]).forEach(block => {
+									let	corners: {x: number, y: number}[] = [];
+									if (block.mask) {
+										// Get shadow casting corners of polygon
+										let
+											poly = block.mask.map(m => {
+												return {
+													x: m.x + block.x - source.x,
+													y: m.y + block.y - source.y
+												}
+											}),
+											diff = 3.1416 - getAng(block.x + block.maskCenter.x - source.x, block.y + block.maskCenter.y - source.y),
+											sAng = Math.sin(diff),
+											cAng = Math.cos(diff),
+											max = 3.1416,
+											min = 3.1416,
+											maxP: {x: number, y: number},
+											minP: {x: number, y: number};
+										poly.forEach(p => {
+											let a = getAng(
+												(p.x * cAng) - (p.y * sAng),
+												(p.x * sAng) + (p.y * cAng)
+											);
+											if (a > max) {
+												max = a;
+												maxP = p;
+											} else if (a < min) {
+												min = a;
+												minP = p;
+											} 
+										});
+										corners.push(
+											{ x: minP.x + source.x, y: minP.y + source.y },
+											{ x: maxP.x + source.x, y: maxP.y + source.y },						
+										);
+									} else {
+										// Get shadow casting corners of circle
+										let angDiff = getAng(block.x - source.x, block.y - source.y);
+										corners.push(
+											{
+												x: block.x + (Math.cos(angDiff - (Math.PI / 2)) * block.clipRad),
+												y: block.y + (Math.sin(angDiff - (Math.PI / 2)) * block.clipRad)
+											},
+											{
+												x: block.x + (Math.cos(angDiff + (Math.PI / 2)) * block.clipRad),
+												y: block.y + (Math.sin(angDiff + (Math.PI / 2)) * block.clipRad)
+											}
+										);
+									}
+									// Calculate where shadow edges meet boundary of light
+									let ang = Math.atan2(
+										corners[1].y - source.y,
+										corners[1].x - source.x
+									);
+									corners.push({
+										x : source.x + (source.rad * Math.cos(ang)),
+										y : source.y + (source.rad * Math.sin(ang))
+									});
+									ang = Math.atan2(
+										corners[0].y - source.y,
+										corners[0].x - source.x
+									);
+									corners.push({
+										x : source.x + source.rad * Math.cos(ang),
+										y : source.y + source.rad * Math.sin(ang)
+									});
+									// Draw shadow pattern
+									ctx2.beginPath();
+										ctx2.moveTo(corners[0].x, corners[0].y);
+										ctx2.lineTo(corners[1].x, corners[1].y);
+										ctx2.lineTo(corners[2].x, corners[2].y);
+										ctx2.lineTo(corners[3].x, corners[3].y);
+										let ang0 = Math.atan2(
+											corners[2].y - source.y,
+											corners[2].x - source.x
+										);
+										let ang1 = Math.atan2(
+											corners[3].y - source.y,
+											corners[3].x - source.x
+										);
+										ctx2.arc(
+											source.x, source.y,
+											source.rad,
+											ang0, ang1,
+											angDiff(ang0, ang1) > 0
+										);
+										ctx2.lineTo(corners[0].x, corners[0].y);
+									
+									ctx2.fillStyle = block.translucentColor;
+									ctx2.globalCompositeOperation = 'destination-out';
+									ctx2.fill();
+									if (block.translucentColor === '#000') {
+										ctx2.save();
+											block.spriteMask(ctx2);
+										ctx2.restore();
+									}
+									ctx2.globalCompositeOperation = 'source-atop';
+									ctx2.fill();
+									// if (block.translucentColor !== '#000') {
+									// 	ctx2.save();
+									// 		block.spriteMask(ctx2);
+									// 	ctx2.restore();
+									// }
+								});
 
-// 		outputCtx.drawImage(can0, 0, 0);
-// 	}
+								// Add light to light from other sources
+								ctx1.globalCompositeOperation = 'lighter';
+								ctx1.drawImage(can2, 0, 0);
 
-// 	export function getSources() {
-// 		return S;
-// 	}
+								// Reset working canvas
+								ctx2.save();
+									ctx2.setTransform(1, 0, 0, 1, 0, 0);
+									ctx2.clearRect(0, 0, can2.width, can2.height);
+								ctx2.restore();
+							}
+						}
+					});
+			ctx2.restore();
 
-// 	export function getBlocks() {
-// 		return B;
-// 	}
+			// Draw the background light (shadows)
+			ctx0.globalCompositeOperation = 'source-over';
+			ctx0.clearRect(0, 0, can0.width, can0.height);
+			ctx0.fillRect(0, 0, can0.width, can0.height);
+			ctx0.globalCompositeOperation = 'destination-out';
+			ctx0.drawImage(can1, 0, 0);
 
-// 	export function getNoCasts() {
-// 		return Nc;
-// 	}
+			// Draw the lighting
+			ctx.globalCompositeOperation = 'source-over';
+			ctx.drawImage(can0, 0, 0);
+			ctx.globalCompositeOperation = 'lighter';
+			ctx.drawImage(can1, 0, 0);
+			ctx.globalCompositeOperation = 'source-over';
+		}
+	}
 
-// 	export function moveLvl(dx, dy) {
-// 		for (var i = 0; i < B.length; i += 1) {
-// 			B[i].x += dx;
-// 			B[i].y += dy;
-// 		}
-// 		for (var i = 0; i < S.length; i += 1) {
-// 			S[i].x += dx;
-// 			S[i].y += dy;
-// 		}
-// 	}
-// }
+	/** Light emitting object */
+	export class Source {
+		/** Direction light is pointing; only matters if light arc is set */
+		public active: boolean = true;
+		public ang: number = 0;
+		public mask: HTMLCanvasElement;
+		public lightArea: LightArea;
+		private maskCtx: CanvasRenderingContext2D;
+		private _rad: number;
+		private _color: string;
+		private transColor: string;
+		private _arc: number;
+		private _edgeBlur: number;
+		public customMask: (ctx: CanvasRenderingContext2D, radius: number, color: string)=>void;
+
+		/**
+		  rad is the radius of the light circle cast.
+			color is a hex value, defaults set to #fff (white)
+			If castShadows is false, light will not be affected by blockers
+			arc is the angle in radians of the light circle cast. Default is 2PI, a full circle.
+			If arc is not a full circle, edgeBlue defines the blur of the arc edges.
+		 */
+		constructor(
+			public x: number,
+			public y: number, 
+			rad: number,
+			color: string = '#fff',
+			public castShadows: boolean = true,
+			arc: number = 6.2832,
+			edgeBlur: number = 0
+		) {
+			this._rad = rad;
+			this._arc = arc;
+			this._edgeBlur = edgeBlur;
+
+			this.mask = document.createElement('canvas');
+			this.maskCtx = this.mask.getContext('2d');
+			this.mask.width = this.mask.height = rad * 2;
+
+			this.color = color;
+
+			if (!World.area.light) {
+				console.error('Bunas Light Error: Can\'t add Block before calling Area.toggleLight()');
+				return;
+			}
+			World.area.light.addSource(this);
+			this.lightArea = World.area.light;
+		}
+
+		get rad(): number {
+			return this._rad;
+		}
+		set rad(newRad: number) {
+			if (newRad < 1) {
+				this._rad = 1;
+				this.active = false;
+			} else if (newRad !== this._rad) {
+				this._rad = newRad;
+				this.active = true;
+				this.mask.width = this.mask.height = newRad * 2;
+				this.setMask();
+			}
+		}
+
+		get opacity(): number {
+			return parseInt(this._color.substr(7, 2), 16) / 255;
+		}
+		set opacity(val: number) {
+			let val16 = Math.floor(Math.max(0, Math.min(1, val)) * 255).toString(16);
+			this.color = this._color.substring(0, 7) + (val16.length === 1 ? '0' + val16 : val16);
+		}
+
+		get color(): string {
+			return this._color;
+		}
+		set color(val: string) {
+			if (val.length === 4) {
+				val = '#' + val[1] + val[1] + val[2] + val[2] + val[3] + val[3];
+			} else if (val.length === 5) {
+				val = '#' + val[1] + val[1] + val[2] + val[2] + val[3] + val[3] + val[4] + val[4];
+			}
+			if (val.length === 7) {
+				val += 'ff';
+			}
+			this._color = val;
+			this.transColor = val.substring(0, 7) + '00';
+			this.setMask();
+		}
+
+		set arc(newArc: number) {
+			if (newArc !== this._arc) {
+				this._arc = newArc;
+				this.setMask();
+			}
+		}
+
+		set edgeBlur(newBlur: number) {
+			if (newBlur !== this._edgeBlur) {
+				this._edgeBlur = newBlur;
+				this.setMask();
+			}
+		}
+
+		private setMask() {
+			this.maskCtx.save();
+				this.maskCtx.translate(this._rad, this._rad);
+				if (this.customMask) {
+					this.customMask(this.maskCtx, this._rad, this._color);
+				} else {
+					this.maskCtx.beginPath();
+						this.maskCtx.moveTo(0, 0);
+						this.maskCtx.arc(
+							0, 0,
+							this._rad,
+							this._arc / -2, this._arc / 2
+						);
+						this.maskCtx.lineTo(0, 0);
+						if (this._arc < 6.282 && this._edgeBlur > 0) {
+							let blurX = Math.asin(this._arc / 2) * this._edgeBlur,
+									blurY = Math.acos(this._arc / 2) * this._edgeBlur;
+							let grdLinTop = this.maskCtx.createLinearGradient(0, 0, blurX, blurY);
+							grdLinTop.addColorStop(0, this.transColor);
+							grdLinTop.addColorStop(1, this._color);
+							let grdLinBtm = this.maskCtx.createLinearGradient(0, 0, blurX, -blurY);
+							grdLinBtm.addColorStop(0, this.transColor);
+							grdLinBtm.addColorStop(1, this._color);
+							this.maskCtx.fillStyle = grdLinTop;
+							this.maskCtx.fill();
+							this.maskCtx.globalCompositeOperation = 'source-in';
+							this.maskCtx.fillStyle = grdLinBtm;
+							this.maskCtx.fill();
+						}
+						let grdRad = this.maskCtx.createRadialGradient(0, 0, 0, 0, 0, this._rad);
+						grdRad.addColorStop(0, this._color);
+						grdRad.addColorStop(1, this.transColor);
+						this.maskCtx.fillStyle = grdRad;
+					this.maskCtx.fill();
+				}
+			this.maskCtx.restore();
+		}
+
+		/** */
+		public delete() {
+			if (this.lightArea) {
+				this.lightArea.sources.splice(this.lightArea.sources.indexOf(this), 1);
+			}
+			this.lightArea = null;
+		}
+	}
+
+	/** Light blocking / shadow casting object */
+	export class Block {
+		public mask: {x: number, y: number}[];
+		public maskCenter: {x: number, y: number};
+		public _ang: number = 0;
+		public clipRad: number;
+		public lightArea: LightArea;
+		public spriteMask: (ctx: CanvasRenderingContext2D)=>void;
+
+		/**
+		 	Mask is the polygon which blocks light
+			  - If mask is a polygon, it is given as an array of points which define the shape
+			  - If mask is a rectangle, it can be given as an object of {width, height}
+			  - If mask is a circle, it is given as a number of the circle's radius length
+			spriteMask is an optional sprite shape which will be removed from the shadow in addition to the mask
+			  - spriteMask allows a block to be made for a complex spirte shape but using a simple underlying polygon mask to improve render time
+			blockLightInside, if true, blocks all light from a light source if it is within the bounds of the block
+			translucent color is the colour light passing through the blocker will turn if it is not fully opaque
+		 */
+		constructor(
+			public x: number,
+			public y: number,
+			mask: {x: number, y: number}[] | {width: number, height: number} | number,
+			spriteMask?: HTMLImageElement | ((ctx: CanvasRenderingContext2D)=>void),
+			public blockLightInside: boolean = false,
+			public translucentColor = '#000'
+		) {
+			if (!World.area.light) {
+				console.error('Bunas Error - Light: Tried to add Block before calling Area.toggleLight().');
+				return;
+			}
+			World.area.light.addBlock(this);
+			this.lightArea = World.area.light;
+
+			if (typeof mask === 'number') {
+				this.clipRad = mask;
+			} else {
+				if (!Array.isArray(mask)) {
+					let w = mask.width / 2,
+							h = mask.height / 2;
+					mask = [
+						{x: this.x - w, y: this.y - h},
+						{x: this.x + w, y: this.y - h},
+						{x: this.x + w, y: this.y + h},
+						{x: this.x - w, y: this.y + h}
+					];
+				}
+				this.mask = mask;
+
+				let minX = this.mask.reduce((min, p) => Math.min(min, p.x), this.mask[0].x),
+						maxX = this.mask.reduce((max, p) => Math.max(max, p.x), this.mask[0].x),
+						minY = this.mask.reduce((min, p) => Math.min(min, p.y), this.mask[0].y),
+						maxY = this.mask.reduce((max, p) => Math.max(max, p.y), this.mask[0].y);
+				
+				this.clipRad = Math.sqrt(Math.pow(maxX - minX, 2) + Math.pow(maxY - minY, 2)) / 2;
+				this.maskCenter = {
+					x: minX + ((maxX - minX) / 2),
+					y: minY + ((maxY - minY) / 2)
+				};
+			}
+
+			if (typeof spriteMask === 'undefined') {
+				if (typeof this.mask === 'number') {
+					this.spriteMask = ctx => {
+						ctx.beginPath();
+							ctx.arc(this.x, this.y, this.clipRad, 0, Math.PI * 2);
+						ctx.fill();
+					}
+				} else {
+					this.spriteMask = ctx => {
+						ctx.translate(this.x, this.y);
+						ctx.rotate(this._ang);
+						ctx.beginPath();
+							(this.mask as {x: number, y: number}[]).forEach(p => ctx.lineTo(p.x, p.y));
+						ctx.closePath();
+						ctx.fill();
+					}
+				}
+			} else if (typeof spriteMask === 'function') {
+				this.spriteMask = spriteMask;
+			} else {
+				this.spriteMask = ctx => {
+					ctx.save();
+						ctx.translate(this.x, this.y);
+						ctx.rotate(this._ang);
+						ctx.drawImage(spriteMask, this.x, this.y);
+					ctx.restore();
+				}
+			}
+		}
+
+		get ang(): number {
+			return this._ang;
+		}
+		set ang(newVal: number) {
+			if (newVal !== this._ang) {
+				if (this.mask) {
+					let xDiff = Math.cos(newVal - this._ang),
+							yDiff = Math.sin(newVal - this._ang);
+					this.mask.forEach(p => {
+						p.x -= this.maskCenter.x,
+						p.y -= this.maskCenter.y;
+						let newX = (p.x * xDiff) - (p.y * yDiff),
+						newY = (p.x * yDiff) + (p.y * xDiff);
+						p.x = newX + this.maskCenter.x;
+						p.y = newY + this.maskCenter.y;
+					});
+				}
+				this._ang = newVal;
+			}
+		}
+
+		/** */
+		public delete() {
+			if (this.lightArea) {
+				this.lightArea.blocks.splice(this.lightArea.blocks.indexOf(this), 1);
+			}
+			this.lightArea = null;
+		}
+	}
+}
+
 import { GameObject } from './Common';
 import { World } from './World';
 
@@ -2016,9 +2443,9 @@ export module Matter {
             M.World.add(mainEng.world, body);
         }
 
-        public die() {
+        public delete() {
             M.World.remove(mainEng.world, this.body);
-            super.die();
+            super.delete();
         }
 
         public rotate(ang: number, p?: Vector): void {
@@ -2250,7 +2677,7 @@ export module Physics {
 		constructor(
 			public x    : number,
 			public y    : number,
-            public rad  : number,
+      public rad  : number,
 			public fric : number = 0,
 			public el   : number = 0.5,
 			public m    : number = rad / 2
@@ -2334,277 +2761,493 @@ export module Physics {
 }
 import { Engine } from './Engine';
 import { GameObject } from './Common';
-import { Input } from './Input';
+import { Light } from './Light';
+import { Graphics } from './Graphics';
+import { Debug } from './Debug';
 
+/**
+	Contains classes which allow
+		- Creation of seperate game areas
+		- Area level design
+		- Viewport control
+*/
 export module World {
-    //
-    // Class: Area
-    //
-    export class Area {
-        public objs : GameObject[] = [];
-        public views : View[] = [];
-        private layout: {
-            grid: string;
-            objects: {[instance: string]: any[]};
-            width: number;
-            height: number;
-            x: number,
-            y: number
-        };
-        private active : boolean = false;
 
-        constructor(
-            public onInit     : ()=>void = ()=>{},
-            public onOpen     : ()=>void = ()=>{},
-            public onClose    : ()=>void = ()=>{},
-            private persist   : boolean = false,
-            view?             : View
-        ) {
-            if (!view) {
-                this.addView(new View(0, 0, 1));
-            }
-        };
+		// Types
+		export type background = {
+			name: string,
+			img: HTMLImageElement | string,
+			parralax: {x: number, y: number},
+			repeat: {x: boolean, y: boolean},
+			offset: {x: number, y: number},
+			z: number
+		};
 
-        private createLayout() {
-            let grid = this.layout.grid.split('\n');
-            let startCol = -1,
-                startRow = -1;
-            for (let i = 0; i < grid.length; i++) {
-                let m = grid[i].match(/[a-z0-9]/i);
-                if (m) {
-                    if (startCol === -1) {
-                        startCol = i;
-                    }
-                    if (m.index < startRow) {
-                        startRow = m.index;
-                    }
-                }
-            }
-            grid.forEach((l, row) => {
-                l.replace(
-                    /[a-z0-9]/gi, 
-                    (o, col) => {
-                        try {
-                            let obj = this.layout.objects[o];
-                            let inst = new obj[0](...obj.slice(1));
-                            inst.x = this.layout.x + ((col - startCol) * this.layout.width);
-                            inst.y = this.layout.y + ((row - startRow) * this.layout.height);
-                            this.addObject(inst);
-                        } catch {
-                            console.error(`Bunas Error: Cannot create object for character "${o}" in level layout`);
-                        }
-                        return o;
-                    }
-                );
-            });
-        }
+		//
+		// Public Variables
+		//
+		export let area: Area;
+		
+		
+		//
+		// Private Variables
+		//
+		let
+			areas: { [name: string]: Area } = {},
+			currentAreas: Area[] = [];
 
-        public setLayout(
-            objs: {[instance: string]: any[]},
-            grid: string,
-            width: number = 64,
-            height?: number,
-            x: number = 0,
-            y: number = 0
-        ): void {
-            this.layout = {
-                grid: grid,
-                objects: objs,
-                width: width,
-                height: height || width,
-                x: x,
-                y: y
-            };
-        }
 
-        public open(): void {
-            if (!this.active) {
-                if (this.layout) {
-                    this.createLayout();
-                }
-                this.onInit();
-                this.views.forEach(v => v.reset());
-                this.active = true;
-            }
-            areas.push(this);
-            this.onOpen();
-        };
+		//
+		// Public Methods
+		//
+		export function step(dT: number) {
+			currentAreas.forEach(a => a.step(dT));
+		};
 
-        public close() {
-            if (!this.persist) {
-                this.active = false;
-                this.objs = [];
-            }
-            areas.splice(1, areas.indexOf(this));
-            this.onClose();
-        };
+		export function draw(ctx: CanvasRenderingContext2D, dT: number) {
+			currentAreas.forEach(a => a.draw(ctx, dT));
+		};
+		
+		/* Opens a new area, if replace is false the previous Area is not closed first */
+		export function goTo(areaName: string, replace: boolean = true) {
+			if (replace) {
+				currentAreas.forEach(a => a.close());
+			}
+			areas[areaName].open();
+		};
 
-        public addObject(o: GameObject, duplicate: Boolean = false): void {
-            if (!duplicate && o.area) {
-                o.area.removeObject(o);
-            }
-            if (!o.z) {
-                o.z = 0;
-            }
-            for(let i = 0, len = this.objs.length; i < len; i++) {
-                if (o.z > this.objs[i].z) {
-                    this.objs.splice(i, 0, o);
-                    return;
-                }
-            }
-            this.objs.push(o);
-            o.area = this;
-        };
 
-        public removeObject(o: GameObject): void {
-            this.objs.splice(this.objs.indexOf(o), 1);
-        }
+		//
+		// Class: Area
+		//
+		/** Class for creating a game area */
+		export class Area {
+			public objs: GameObject[] = [];
+			/** View assigned to this Area */
+			public view: View;
+			/** Light.LightArea assigned to this area if using lighting */
+			public light: Light.LightArea;
+			private active: boolean = false;
+			private _zIndex: number;
+			private layout: {
+				grid: string;
+				objects: {[instance: string]: any[]};
+				width: number;
+				height: number;
+				x: number,
+				y: number
+			};
+			private backgrounds: background[] = [];
+			private foregrounds: background[] = [];
 
-        public addView(v: View): number {
-            this.views.push(v);
-            return this.views.length;
-        };
+			/**
+				If persist is true, objects in area will persists after close(), until open() is called again.
+				If persist is false, all object will be deleted on close, and recreated again on open()
+				zIndex sets the order in which this Area is drawn if multiple areas are open at once
+				onInit, onOpen, onClose are custom functions to call 
+				onInit is called when a persistent Area is opened for the first time
+			*/
+			constructor(
+				private name			: string,
+				private persist   : boolean = false,
+				zIndex						:	number = 0,
+				public onInit     : ()=>void = ()=>{},
+				public onOpen     : ()=>void = ()=>{},
+				public onClose    : ()=>void = ()=>{},
+			) {
+				areas[name] = this;
+				this.view = new View();
+				this._zIndex = zIndex;
+			};
 
-        public removeView(v: View): number {
-            this.views.splice(1, this.views.indexOf(v));
-            return this.views.length;
-        };
+			get zIndex(): number {
+				return this._zIndex;
+			}
+			set zIndex(newVal: number) {
+				this._zIndex = newVal;
+				currentAreas.sort((a, b) => a.zIndex - b.zIndex);
+			}
 
-        public togglePersistance(state?) {
-            this.persist = state === undefined ? this.persist = !this.persist : state;
-            if (!this.persist && !this.active) {
-                this.objs = [];
-            }
-        };
-    };
+			/**
+				Sets the background of area
+				Asset can be the name of background asset, or the string value of a color
+			*/
+			public addBackground(
+				asset: string,
+				isForeGround: boolean = false,
+				zIndex: number = 0,
+				parralax: number | {x: number, y: number} = 1,
+				offset: number | {x: number, y: number} = 0,
+				repeat: boolean | {x: boolean, y: boolean} = true,
+				customName?: string
+			): background {
+				let bg = 	{
+					name: 		customName || asset,
+					img: 			Engine.getBackground(asset, true) || asset,
+					parralax: typeof parralax === 'number' ? {x: parralax, y: parralax} : parralax,
+					offset: 	typeof offset === 'number' ? {x: offset, y: offset} : offset,
+					repeat: 	typeof repeat === 'boolean' ? {x: repeat, y: repeat} : repeat,
+					z: 				zIndex
+				};
+				if (isForeGround) {
+					this.foregrounds.push(bg);
+					this.foregrounds.sort((a, b) => a.z - b.z);
+				} else {
+					this.backgrounds.push(bg);
+					this.backgrounds.sort((a, b) => a.z - b.z);
+				}
+				return bg;
+			}
 
-    //
-    // Class: View Port
-    //
-    export class View {
-        private init_x       : number;
-        private init_y       : number;
-        private init_z       : number;
-        private init_width?  : number;
-        private init_height? : number;
-        private init_canX    : number;
-        private init_canY    : number;
-        private init_canZ    : number;
-        
-        constructor(
-            public x      : number = 0,
-            public y      : number = 0,
-            public z      : number = 1,
-            public ang    : number = 0, 
-            public width  : number = Engine.cW,
-            public height : number = Engine.cH,
-            public canX   : number = 0,
-            public canY   : number = 0,
-            public canZ   : number = 0
-        ) {
-            this.init_x       = x;
-            this.init_y       = y;
-            this.init_z       = z;
-            this.init_width   = width;
-            this.init_height  = height;
-            this.init_canX    = canX;
-            this.init_canY    = canY;
-            this.init_canZ    = canZ;
-        };
+			public removeBackground(bg: string | background) {
+				if (typeof bg !== 'string') {
+					bg = bg.name;
+				}
+				this.backgrounds.splice(this.backgrounds.findIndex(x => bg === x.name), 1);
+				this.foregrounds.splice(this.foregrounds.findIndex(x => bg === x.name), 1);
+			}
 
-        public translate(dx : number, dy : number) {
-            this.x += dx;
-            this.y += dy;
-        };
+			public step(dT: number) {
+				this.objs.forEach(o => o.startStep && o.startStep(dT));
+				this.objs.forEach(o => o.step(dT));
+				this.objs.forEach(o => o.endStep && o.endStep(dT));
+			}
 
-        public zoom(dz : number) {
-            this.z *= dz;
-        };
+			public draw(ctx: CanvasRenderingContext2D, dT: number) {
+				ctx.save();
+					this.view.update();
+					ctx.scale(this.view.z, this.view.z);
+					ctx.translate(-this.view.x, -this.view.y);
 
-        public reset() {
-            this.x      = this.init_x;
-            this.y      = this.init_y;
-            this.z      = this.init_z;
-            this.width  = this.init_width;
-            this.height = this.init_height;
-            this.canX   = this.init_canX;
-            this.canY   = this.init_canY;
-            this.canZ   = this.init_canZ;
-        };
-    };
+					this.drawBackgrounds(ctx, false);
+							
+					let visibleObjs = this.objs.filter(o => {
+						if (
+							o.x + o.clipBox.x + o.clipBox.width > this.view.x &&
+							o.x + o.clipBox.x < this.view.x + this.view.width &&
+							o.y + o.clipBox.y + o.clipBox.height > this.view.y &&
+							o.y + o.clipBox.y  < this.view.y + this.view.height
+						) {
+							o.inView = true;
+						} else {
+							o.inView = false;
+						}
+						return o.inView;
+					});
+					visibleObjs.forEach(o => o.startDraw && o.startDraw(ctx, dT));
+					visibleObjs.forEach(o => o.draw(ctx, dT));
+					visibleObjs.forEach(o => o.endDraw && o.endDraw(ctx, dT));
+				ctx.restore();
 
-    //
-    // Public Variables
-    //
-    export let globalArea: Area;
+				if (this.light) {
+					this.light.draw(ctx);
+				}
 
-    //
-    // Private Variables
-    //
-    let areas       : Area[] = [],
-        activeObjs  : GameObject[];
+				if (this.foregrounds.length) {
+					ctx.save();
+						ctx.scale(this.view.z, this.view.z);
+						ctx.translate(-this.view.x, -this.view.y);
+						this.drawBackgrounds(ctx, true);
+					ctx.restore();
+				}
+			}
 
-    //
-    // Public Methods
-    //
-    export function step(dT: number) {
-        activeObjs = areas.reduce((t, a) => t.concat(a.objs), []);
+			private drawBackgrounds(ctx: CanvasRenderingContext2D, isForeground: boolean) {
+				this[isForeground ? 'foregrounds' : 'backgrounds'].forEach(bg => {
+					if (typeof bg.img === 'string') {
+						ctx.save();
+							ctx.fillStyle = bg.img;
+							ctx.fillRect(this.view.x, this.view.y, Engine.cW / this.view.z, Engine.cH / this.view.z);
+						ctx.restore();
+					} else {
+						let x = (this.view.x * bg.parralax.x) - bg.offset.x;
+						if (bg.repeat.x) {
+							x %= bg.img.width;
+						}
+						x = this.view.x - x;
+						let xEnd = bg.repeat.x ? this.view.x + Engine.cW : x + 1;
+						for (; x < xEnd; x += bg.img.width) {
+							let y = (this.view.y * bg.parralax.y) - bg.offset.y;
+							if (bg.repeat.y) {
+								y %= bg.img.width;
+							}
+							y = this.view.y - y;
+							let yEnd = bg.repeat.y ? this.view.y + Engine.cH : y + 1;
+							for (; y < yEnd; y += bg.img.height) {
+								ctx.drawImage(bg.img, x, y);
+							}
+						}
+					}
+				});
+			}
 
-        for (let i = 0, len = activeObjs.length; i < len; i += 1) {
-            if (activeObjs[i].startStep) {
-                activeObjs[i].startStep(dT);
-            }
-        }
-        for (let i = 0, len = activeObjs.length; i < len; i += 1) {
-            activeObjs[i].step(dT);
-        }
-        for (let i = 0, len = activeObjs.length; i < len; i += 1) {
-            if (activeObjs[i].endStep) {
-                activeObjs[i].endStep(dT);
-            }
-        }
-    };
+			/*
+				Adds game objects based on an area layout grid string
+				grid		-
+					a multiline string where the number of lines is the grid height and the number of characters per line is the grid width
+					each non-space character will add the object its character represents, at a position in the Area relative to its position in the grid string
+				objs		- a list of characters, and the GameObjects they represent int he grid string
+				width 	- the width in px that one character in the grid string represents
+				height	- the height in px that one character in the grid string represents, defaults to the width value if not provided
+				x, y		- the x position in the Area to start drawing the grid objects
+			*/
+			public setLayout(
+				grid: string,
+				objs: {[instance: string]: any[]},
+				cellWidth: number,
+				cellHeight?: number,
+				x: number = 0,
+				y: number = 0
+			): void {
+				this.layout = {
+					grid: grid,
+					objects: objs,
+					width: cellWidth,
+					height: cellHeight || cellWidth,
+					x: x,
+					y: y
+				};
+			};
 
-    export function draw(ctx: CanvasRenderingContext2D, dT: number) {
-        areas
-            .reduce((t, a) => t.concat(a.views), [])
-            .forEach(v => {
-                let visibleObjs = activeObjs.filter(o =>
-                    true
-                    // o.clipRadius < 0 || (
-                    //     o.x + o.clipRadius > v.x &&
-                    //     o.x - o.clipRadius < v.x + v.width &&
-                    //     o.y + o.clipRadius > v.y &&
-                    //     o.y - o.clipRadius < v.y + v.height
-                    // )
-                );
+			private createLayout() {
+				let grid = this.layout.grid.split('\n');
+				let startCol = -1,
+						startRow = -1;
+				for (let i = 0; i < grid.length; i++) {
+					let m = grid[i].match(/[a-z0-9]/i);
+					if (m) {
+						if (startCol === -1) {
+							startCol = i;
+						}
+						if (m.index < startRow) {
+							startRow = m.index;
+						}
+					}
+				}
+				grid.forEach((l, row) => {
+					l.replace(
+						/[a-z0-9]/gi, 
+						(o, col) => {
+							try {
+								let obj = this.layout.objects[o];
+								let inst = new obj[0](...obj.slice(1));
+								inst.x = this.layout.x + ((col - startCol) * this.layout.width);
+								inst.y = this.layout.y + ((row - startRow) * this.layout.height);
+								this.add(inst);
+							} catch {
+								console.error(`Bunas Error: Cannot create object for character "${o}" in level layout`);
+							}
+							return o;
+						}
+					);
+				});
+			};
 
-                ctx.save();
-                    ctx.translate(v.width, v.height);
-                    ctx.rotate(v.ang);
-                    ctx.translate(v.x - v.width, v.y - v.height);
+			/** */
+			public open(): void {
+				if (!this.active) {
+					if (this.layout) {
+						this.createLayout();
+					}
+					this.onInit();
+					this.view.reset();
+					this.active = true;
+				}
+				currentAreas.push(this);
+				currentAreas.sort((a, b) => a.zIndex - b.zIndex);
+				
+				this.onOpen();
+			};
 
-                    for (let i = 0, len = visibleObjs.length; i < len; i += 1) {
-                        if (activeObjs[i].startDraw) {
-                            visibleObjs[i].startDraw(ctx, dT);
-                        }
-                    }
-                    for (let i = 0, len = visibleObjs.length; i < len; i += 1) {
-                        visibleObjs[i].draw(ctx, dT);
-                    }
-                    for (let i = 0, len = visibleObjs.length; i < len; i += 1) {
-                        if (activeObjs[i].endDraw) {
-                            visibleObjs[i].endDraw(ctx, dT);
-                        }
-                    }
-                ctx.restore();
-            });
-    };
-    
-    export function goTo(a: Area, replace: boolean = true) {
-        if (replace) {
-            areas.forEach(act => act.close());
-        }
-        a.open();
-    };
+			/** */
+			public close() {
+				currentAreas.splice(1, currentAreas.indexOf(this));
+				this.onClose();
+				if (!this.persist) {
+					this.objs = [];
+				}
+			};
+
+			/** */
+			public delete(): void {
+				this.objs = [];
+				if (this.light) {
+					this.light.sources.forEach(s => s.delete());
+					this.light.blocks.forEach(s => s.delete());
+				}
+				delete areas[this.name];
+			}
+
+			/* Moves a Game Object, or an array of Game Objects, from thier current Area, to this Area */
+			public add(objs: GameObject | GameObject[]): void {
+				[].concat(objs).forEach(o => {
+					if (o.area) {
+						o.area.remove(o);
+					}
+					for(let i = 0; true; i++) {
+						if (i === this.objs.length || o.z > this.objs[i].z) {
+							this.objs.splice(i, 0, o);
+							break;
+						}
+					}
+					o.area = this;
+				});
+			};
+
+			/** Remove an object from the Area */
+			public remove(o: GameObject): void {
+				this.objs.splice(this.objs.indexOf(o), 1);
+				o.area = null;
+			};
+
+			public zSort(o: GameObject) {
+				this.objs.splice(this.objs.indexOf(o), 1);
+				for(let i = 0; true; i++) {
+					if (i === this.objs.length || o.z > this.objs[i].z) {
+						this.objs.splice(i, 0, o);
+						break;
+					}
+				}
+			}
+
+			/** If persist is not provided, value is set to oppsite of its current value */
+			public togglePersistance(persist?: boolean) {
+				this.persist = persist === undefined ? !this.persist : persist;
+				if (!this.persist && currentAreas.indexOf(this) === -1) {
+					this.objs = [];
+				}
+			};
+
+			/** Use Light engine in this Area */
+			public toggleLight(on?: boolean): void {
+				if (!this.light) {
+					this.light = new Light.LightArea(this);
+				} else {
+					this.light.active = typeof on === 'undefined' ? !this.light.active : on;
+				}
+			};
+	};
+
+	//
+	// Class: View Port
+	//
+	export class View {
+		public width: number;
+		public height: number;
+		public tracking: GameObject;
+		private trackOn: boolean = false;
+		private trackPad: number[];
+		private trackLag: number;
+		private trackBound: number[];
+		private initX: number;
+		private initY: number;
+		private initZ: number;
+
+		/*
+			x, y 					- top left position of View in Area
+			z							- View zoom level
+			ang						- angle of View in Area
+			width, height - width and height to draw the view on the canvas, default to cover the canvas
+			canX, canY	  - top left position to draw View on the canvas
+			canZ					- scale size to draw the view on the canvas
+		*/
+		constructor(
+			public x: number = 0,
+			public y: number = 0,
+			private _z: number = 1
+		) {
+			this.initX = x;
+			this.initY = y;
+			this.initZ = _z;
+			this.width = Engine.cW / _z;
+			this.height = Engine.cH / _z;
+		};
+
+		get z(): number {
+			return this._z
+		}
+		set z(val: number) {
+			this._z = val;
+			this.width = Engine.cW / val;
+			this.height = Engine.cH / val;
+		}
+
+		/**
+			Set the view to keep an Game Object in frame
+			padding is the distance the object must be from the edge of the view before the view is moved
+			If padding is a number it is applied equally for all edges, if an array it is applied as [top, left, bottom, right]
+			trackSpeed is how quickly the view catchs up with the object
+		*/
+		public track(
+			object			: GameObject,
+			padding			: number | number[] = 0,
+			trackSpeed	: number = 0,
+			bound?			: number[]
+		) {
+			this.tracking = object;
+			this.trackLag = trackSpeed;
+			this.trackOn = true;
+			if (bound) {
+				bound[2] += bound[0];
+				bound[3] += bound[1];
+				bound[2] -= this.width;
+				bound[3] -= this.height;
+				this.trackBound = bound;
+			}
+			if (typeof padding === 'number') {
+				this.trackPad = [padding, padding, padding, padding];
+			} else if (padding.length === 2) {
+				this.trackPad = [...padding, ...padding]
+			} else {
+				this.trackPad = padding;
+			}
+		}
+
+		/**
+			Temporarily turn object tracking on or off
+			If turnOn is not provided, value is set to oppsite of its current value
+		*/
+		public toggleTracking(turnOn?: boolean) {
+			if (typeof turnOn === undefined) {
+				this.trackOn = !this.trackOn;
+			} else {
+				this.trackOn = turnOn;
+			}
+		}
+
+		public update() {
+			if (this.tracking) {
+				if (this.tracking.y < this.y + this.trackPad[0]) {
+					this.y -= (this.y - this.tracking.y + this.trackPad[0]) * this.trackLag;
+				}  if (this.tracking.y > this.y + this.height - this.trackPad[2]) {
+					this.y += (this.tracking.y - (this.y + this.height - this.trackPad[2])) * this.trackLag;
+				}
+				if (this.tracking.x < this.x + this.trackPad[3]) {
+					this.x -= (this.x - this.tracking.x + this.trackPad[3]) * this.trackLag;;
+				}  if (this.tracking.x > this.x + this.width - this.trackPad[1]) {
+					this.x += (this.tracking.x - (this.x + this.width - this.trackPad[1])) * this.trackLag;;
+				}
+				if (this.trackBound) {
+					if (this.y < this.trackBound[1]) {
+						this.y = this.trackBound[1];
+					} else if (this.y > this.trackBound[3]) {
+						this.y = this.trackBound[3];
+					}
+					if (this.x < this.trackBound[0]) {
+						this.x = this.trackBound[0];
+					} else if (this.x > this.trackBound[2]) {
+						this.x = this.trackBound[2];
+					}
+				}
+				this.x = Math.floor(this.x);
+				this.y = Math.floor(this.y);
+			}
+		}
+
+		public reset() {
+			this.x = this.initX;
+			this.y = this.initY;
+			this.z = this.initZ;
+		}
+	};
 }

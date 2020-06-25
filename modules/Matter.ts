@@ -157,9 +157,9 @@ export module Matter {
             M.World.add(mainEng.world, body);
         }
 
-        public die() {
+        public delete() {
             M.World.remove(mainEng.world, this.body);
-            super.die();
+            super.delete();
         }
 
         public rotate(ang: number, p?: Vector): void {

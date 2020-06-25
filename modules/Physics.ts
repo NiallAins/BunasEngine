@@ -138,7 +138,7 @@ export module Physics {
 		constructor(
 			public x    : number,
 			public y    : number,
-            public rad  : number,
+      public rad  : number,
 			public fric : number = 0,
 			public el   : number = 0.5,
 			public m    : number = rad / 2
