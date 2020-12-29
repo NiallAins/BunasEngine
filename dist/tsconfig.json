@@ -2,7 +2,7 @@
     "compileOnSave": true,
     "compilerOptions": {
         "module": "amd",
-        "target": "es5",
+        "target": "es6",
         "outFile": "./dist/src.js",
         "removeComments": true,
         "sourceMap": true,

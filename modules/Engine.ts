@@ -46,7 +46,9 @@ export module Engine {
 		/** Target canvas element width */
 		cW: number,
 		/** Target canvas element height */
-		cH: number;
+		cH: number,
+		/** Max value for dT */
+		maxDelta: number = 3;
 
 	//
 	// Setters / Getters
@@ -148,12 +150,15 @@ export module Engine {
 			}
 		} else {
 			can = document.getElementsByTagName('canvas')[0];
-			if (!can) {
+			if (can) {
+				can.width = canWidth || can.width || window.innerWidth;
+				can.height = canHeight || can.height || window.innerHeight;
+			} else {
 				can = document.createElement('canvas');
+				can.width = canWidth || window.innerWidth;
+				can.height = canHeight || window.innerHeight;
 				document.body.appendChild(can);
 			}
-			can.width = canWidth || window.innerWidth;
-			can.height = canHeight || window.innerHeight;
 		}
 		cW = can.width;
 		cH = can.height;
@@ -309,7 +314,7 @@ export module Engine {
 	function loop(): void {
 		setTimeout(() => {
 			let newT: number = +new Date();
-			dT = (newT - currentT) / frameDur;
+			dT = Math.min(maxDelta, (newT - currentT) / frameDur);
 			currentT = newT;
 			
 			preStep(dT);

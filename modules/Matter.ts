@@ -203,13 +203,13 @@ export module Matter {
         //
         // Shorthand getters/setters
         //
-        get ang(): number { return this.body.angle; };
+        // get ang(): number { return this.body.angle; };
 
-        get x(): number { return this.body.position.x };
-        set x(v: number) { this.body ? M.Body.setPosition(this.body, {x: v, y: this.body.position.y}) : ''; };
+        // get x(): number { return this.body.position.x };
+        // set x(v: number) { this.body ? M.Body.setPosition(this.body, {x: v, y: this.body.position.y}) : ''; };
 
-        get y(): number { return this.body.position.y };
-        set y(v: number) { this.body ? M.Body.setPosition(this.body, {x: this.body.position.x, y: v}) : ''; };
+        // get y(): number { return this.body.position.y };
+        // set y(v: number) { this.body ? M.Body.setPosition(this.body, {x: this.body.position.x, y: v}) : ''; };
     };
 
     //

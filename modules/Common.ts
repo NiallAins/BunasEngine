@@ -1,6 +1,35 @@
 import { World } from './World';
 import { Input } from './Input';
 import { Graphics } from './Graphics';
+import { Light } from './Light';
+
+//
+// Types and Interfaces
+//
+export abstract class Bindable {
+	public bound: {obj: GameObject, xOffset: number, yOffset: number, angOffset?: number, xCenter?: number, yCenter?: number};
+
+	/** Match a GameObjects position and angle to this GameObjects position and angle */
+	public bindPosition(
+		obj: GameObject,
+		xOffset: number = 0,
+		yOffset: number = 0,
+		angOffset?: number,
+		xCenter: number = 0,
+		yCenter: number = 0
+	) {
+		this.bound = {obj: obj, xOffset: xOffset, yOffset: yOffset};
+		if (typeof angOffset !== 'undefined') {
+			this.bound.angOffset = angOffset;
+			this.bound.xCenter = xCenter;
+			this.bound.yCenter = yCenter;
+		}
+	}
+	/** */
+	public unbindPosition() {
+		this.bound = null;
+	}
+};
 
 //
 // Classes
@@ -9,13 +38,14 @@ import { Graphics } from './Graphics';
 /**
   Base class from which all other game objects will inherit
 */
-export abstract class GameObject {
+export abstract class GameObject extends Bindable {
 	/** Current area object is in */
 	public area: World.Area;
 	public colBox: {x: number, y: number, width: number, height: number};
 	public clipBox: {x: number, y: number, width: number, height: number};
 	public sprite: Graphics.Sprite | HTMLImageElement;
 	public mask: {x: number, y: number}[];
+	public ang: number = 0;
 	/** Is the object currently on screen (set before step events are called) */
 	public inView: boolean = true;
 
@@ -30,6 +60,7 @@ export abstract class GameObject {
 		colWidth: number | {x?: number, y?: number, width: number, height?: number} = 0,
 		clipWidth: number | {x?: number, y?: number, width: number, height?: number} = -1
 	) {
+		super();
 		if (typeof colWidth === 'number') {
 			this.colBox = {
 				x: 0,
@@ -107,7 +138,13 @@ export abstract class GameObject {
 	}
 
 	/* Returns true if rectangle defined by parameters is within objects colBox */
-	public checkCollision(x: number, y: number, w: number = 0, h: number = 0): boolean {
+	public checkCollision(x: number | GameObject, y?: number, w: number = 0, h: number = 0): boolean {
+		if (typeof x !== 'number') {
+			y = x.y + x.colBox.y;
+			w = x.colBox.width;
+			h = x.colBox.height;
+			x = x.x + x.colBox.x;
+		}
 		return (
 			x < this.x + this.colBox.x + this.colBox.width &&
 			x + w > this.x + this.colBox.x &&

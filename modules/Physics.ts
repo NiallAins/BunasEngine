@@ -103,37 +103,37 @@ export module Physics {
     // Class: Physics Context
     //
 	export class Context {
-        private objs: Particle[] = [];
-        public  grav: Vec;
+    private objs: Particle[] = [];
+    public  grav: Vec;
 
 		constructor(
-            public fric: number = 0,
-            gravity: boolean | number | Vec = false
+      public fric: number = 0,
+      gravity: boolean | number | Vec = false
 		) {
-            if (gravity === true) {               
-                this.grav = new Vec(0, GRAV);
-            } else if (typeof gravity === 'number') {
-                this.grav = new Vec(0, gravity);
-            } else {
-                this.grav = gravity as Vec;
-            }
-        }
+      if (gravity === true) {               
+        this.grav = new Vec(0, GRAV);
+      } else if (typeof gravity === 'number') {
+        this.grav = new Vec(0, gravity);
+      } else {
+        this.grav = gravity as Vec;
+      }
+    }
 
 		public addParticle(p: Particle): Particle {
-            this.objs.push(p);
-            p.phyCtx = this;
-            return p;
+      this.objs.push(p);
+      p.phyCtx = this;
+      return p;
 		}
 	}
 
-    //
-    // Class: Particle Object
-    //
+  //
+  // Class: Particle Object
+  //
 	export class Particle extends GameObject {
 		public p: Vec;
 		public v: Vec = new Vec(0, 0);
-        public f: Vec = new Vec(0, 0);
-        public phyCtx: Context;
+    public f: Vec = new Vec(0, 0);
+    public phyCtx: Context;
 
 		constructor(
 			public x    : number,
@@ -143,51 +143,46 @@ export module Physics {
 			public el   : number = 0.5,
 			public m    : number = rad / 2
 		) {
-            super(x, y, 0, rad);
-            this.p = new Vec(x, y);
+      super(x, y, 0, rad);
+      this.p = new Vec(x, y);
             
-            if (!globalCtx) {
-                globalCtx = new Context();
-            }
-            globalCtx.addParticle(this);
+      if (!globalCtx) {
+        globalCtx = new Context();
+      }
+      globalCtx.addParticle(this);
 		}
 
-		public step(delta) {
-            if (this.phyCtx.grav) {
-                this.applyForce(this.phyCtx.grav);
-            }
-
-            let friction: Vec = this.v.clone();
-            friction.setAng((friction.getAng() + Math.PI) % (2 * Math.PI));
-            friction = friction.scale(this.m * this.phyCtx.fric * this.fric);
-            this.f = this.f.add(friction);
-
-            this.f.scale(delta);
-
-            this.v = this.v.add(this.f);
-            if (this.v.getMag() > 0.1) {
-                this.p = this.p.add(this.v);
-                this.x = this.p.x;
-                this.y = this.p.y;
-            } else if (this.v.getMag() !== 0) {
-                this.v = new Vec(0, 0);
-            }
-
-            this.f = new Vec(0, 0);
-
-            this.collisionAndBounce();
-        }
-        
-        public draw(ctx, dT) {
-            ctx.beginPath();
-                ctx.strokeStyle = 'dodgerblue';
-                ctx.arc(this.p.x, this.p.y, this.rad - 2, 0, TAU);
-            ctx.stroke();
-        }
+		public step(dt: number) {
+			if (this.phyCtx.grav) {
+				this.applyForce(this.phyCtx.grav);
+			}
+			let friction: Vec = this.v.clone();
+			friction.setAng((friction.getAng() + Math.PI) % (2 * Math.PI));
+			friction = friction.scale(this.m * this.phyCtx.fric * this.fric);
+			this.f = this.f.add(friction);
+			this.f.scale(dt);
+			this.v = this.v.add(this.f);
+			if (this.v.getMag() > 0.1) {
+				this.p = this.p.add(this.v);
+				this.x = this.p.x;
+				this.y = this.p.y;
+			} else if (this.v.getMag() !== 0) {
+				this.v = new Vec(0, 0);
+			}
+			this.f = new Vec(0, 0);
+			this.collisionAndBounce();
+		}
+		
+		public draw(ctx: CanvasRenderingContext2D) {
+			ctx.beginPath();
+				ctx.strokeStyle = 'dodgerblue';
+				ctx.arc(this.p.x, this.p.y, this.rad - 2, 0, TAU);
+			ctx.stroke();
+		}
 
 		public applyForce(F: Vec) {
 			this.f = this.f.add(F);
-        }
+    }
 
 		private collisionAndBounce = function() {
 			for (let i = 0, len = this.phyCtx.objs.length; i < len; i++) {
@@ -218,5 +213,5 @@ export module Physics {
 				}
 			}
 		}
-    }
+  }
 }

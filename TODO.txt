@@ -16,3 +16,100 @@ Light module
 autodoc - multirow object variables
 autodoc - set, get support
 autodoc - extract public variables from constructor
+
+THEMES
+ - Exploration
+ - Discovery
+
+MAIN GOAL
+  - Get to bottom of cave and photograph mystery fish
+
+Secondary Goals
+ - Photograph other fish
+ - Collect treasure and gems to sell
+ - upgrade equipment
+
+MECHANICS
+  Upgrades
+  Harder Hammer
+  More Battery Camera
+  Flippers
+  Bigger Tank
+  Film
+
+  Rock
+    Hardness
+    Has gems
+    Has tresure
+
+  Fish
+    React if:
+      - Too near
+      - Shine light
+      - camera Flash
+      - hammer noise
+      - hit
+    
+    React with:
+      - Fleeing
+      - Attacking
+      - Stop & Look
+
+
+ToDo:
+    GRAPHICS
+    -> Gem lighting
+    -> Variance in plants
+    -> Hardest block
+    -> distrotion map for water effect?
+    -> Better boat
+
+    HAMMER
+      -> Hit animation
+      -> Break animation
+      -> Set hardness and break tracker
+      -> Gem distribution
+
+    CAMERA
+      -> Camera controls
+      -> Flash animation
+      -> Decide on focusing
+      -> Decide on motion blur
+      -> Fish detection in UI
+      -> Assign points
+
+    CONTROLS
+      -> Tap WASD to turn but not move
+
+    UI
+      -> Torch icon
+      -> Minerals icon
+      -> Camera icon
+      -> Torch meter
+
+    MENU
+      -> Set cover
+      -> Decide on photo keep / delete
+      -> Add ahop items UI
+      -> track shop upgrades
+      -> Add instructions to back cover
+
+    FISH
+      -> Add special fish menu UI
+      -> Add fish
+          Piranha -> swarm
+          -> Proximity alert
+          -> Chase
+          -> Only minor retreat with hit
+
+          Shark -> 
+          -> Light alert
+          -> Slow swim towards, good at avoiding
+          -> Random fast attack
+          -> Multiple hits stun
+
+          Blind Electric Eel ->
+          -> Noise alert
+          -> Very fast
+          -> Hit will stun
+          -> Electric glow

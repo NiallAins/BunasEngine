@@ -148,7 +148,19 @@ export module World {
 
 			public step(dT: number) {
 				this.objs.forEach(o => o.startStep && o.startStep(dT));
-				this.objs.forEach(o => o.step(dT));
+				this.objs.forEach(o => {
+					if (o.bound) {
+						if (typeof o.bound.angOffset === 'undefined') {
+							o.x = o.bound.obj.x + o.bound.xOffset;
+							o.y = o.bound.obj.y + o.bound.yOffset;
+						} else {
+							let ang = o.bound.obj.ang + o.bound.angOffset;
+							o.x = o.bound.obj.x + o.bound.xOffset + (Math.cos(ang) * o.bound.xCenter);
+							o.y = o.bound.obj.y + o.bound.yOffset + (Math.sin(ang) * o.bound.yCenter);
+						}
+					}
+					o.step(dT);
+				});
 				this.objs.forEach(o => o.endStep && o.endStep(dT));
 			}
 

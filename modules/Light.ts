@@ -1,6 +1,6 @@
 import { Engine } from './Engine';
 import { World } from './World';
-import { Debug } from './Debug';
+import { Bindable } from './Common';
 
 /** This module creates lighting effects including shadow casting, background lighting and coloured lighting */
 export module Light {
@@ -10,33 +10,30 @@ export module Light {
 	//
 
 	let
-		can0: HTMLCanvasElement,
-		ctx0: CanvasRenderingContext2D,
-		can1: HTMLCanvasElement,
-		ctx1: CanvasRenderingContext2D,
-		can2: HTMLCanvasElement,
-		ctx2: CanvasRenderingContext2D;
+		// Canvas for drawing the background light (shadow)
+			can0: HTMLCanvasElement,
+			ctx0: CanvasRenderingContext2D,
+		// Canvas for storing the light from all sources, before removing from can0 light
+			can1: HTMLCanvasElement,
+			ctx1: CanvasRenderingContext2D,
+		// Canvas for drawing a single source
+			can2: HTMLCanvasElement,
+			ctx2: CanvasRenderingContext2D;
+		
 
 	//
 	// Private Methods
 	//
 
 	function lightEngineInit() {
-		// Canvas for drawing the background light (shadow)
 		can0 = document.createElement('canvas');
-		ctx0 = can0.getContext('2d');
-
-		// Canvas for storing the light from all sources, before removing from can0 light
-		can1 = document.createElement('canvas');
-		ctx1 = can1.getContext('2d');
-
-		// Canvas for calculating the shadows from a single source
 		can2 = document.createElement('canvas');
+		can1 = document.createElement('canvas');
+		can0.width  = can1.width  = can2.width  =  Engine.cW;
+		can0.height = can1.height = can2.height =  Engine.cH;
+		ctx0 = can0.getContext('2d');
+		ctx1 = can1.getContext('2d');
 		ctx2 = can2.getContext('2d');
-
-		can0.width = can1.width = can2.width = Engine.cW;
-		can0.height = can1.height = can2.height = Engine.cH;
-
 		ctx0.imageSmoothingEnabled = false;
 		ctx1.imageSmoothingEnabled = false;
 		ctx2.imageSmoothingEnabled = false;
@@ -104,6 +101,30 @@ export module Light {
 				return;
 			}
 
+			// Update position of bound objects
+			this.sources.forEach(s => {
+				if (s.bound) {
+					if (typeof s.bound.angOffset === 'undefined') {
+						s.x = s.bound.obj.x + s.bound.xOffset;
+						s.y = s.bound.obj.y + s.bound.yOffset;
+					} else {
+						let ang = s.bound.obj.ang + s.bound.angOffset;
+						s.x = s.bound.obj.x + s.bound.xOffset + (Math.cos(ang) * s.bound.xCenter);
+						s.y = s.bound.obj.y + s.bound.yOffset + (Math.sin(ang) * s.bound.yCenter);
+						s.ang = ang;
+					}
+				}
+			});
+			this.blocks.forEach(b => {
+				if (b.bound.obj) {
+					b.x = b.bound.obj.x + b.bound.xOffset;
+					b.y = b.bound.obj.y + b.bound.yOffset;
+					if (typeof b.bound.angOffset === 'number') {
+						b.ang = b.bound.obj.ang + b.bound.angOffset;
+					}
+				}
+			});
+
 			ctx1.clearRect(0, 0, can1.width, can1.height);
 
 			ctx2.save();
@@ -133,8 +154,8 @@ export module Light {
 							// Only draw shadows for blocks within reach of light
 							this.blocks.forEach(block => {
 								let dis =
-									Math.pow(block.x + block.maskCenter.x - source.x, 2) +
-									Math.pow(block.y + block.maskCenter.y - source.y, 2);
+									Math.pow(block.x + block.bound.xCenter - source.x, 2) +
+									Math.pow(block.y + block.bound.yCenter - source.y, 2);
 								if (dis < Math.pow(source.rad + block.clipRad, 2)) {
 									// If light is within block and block has blockLightInside = true, draw no light from source
 									if (block.blockLightInside && dis < Math.pow(block.clipRad, 2)) {
@@ -173,7 +194,7 @@ export module Light {
 													y: m.y + block.y - source.y
 												}
 											}),
-											diff = 3.1416 - getAng(block.x + block.maskCenter.x - source.x, block.y + block.maskCenter.y - source.y),
+											diff = 3.1416 - getAng(block.x + block.bound.xCenter - source.x, block.y + block.bound.yCenter - source.y),
 											sAng = Math.sin(diff),
 											cAng = Math.cos(diff),
 											max = 3.1416,
@@ -249,22 +270,38 @@ export module Light {
 											angDiff(ang0, ang1) > 0
 										);
 										ctx2.lineTo(corners[0].x, corners[0].y);
-									
 									ctx2.fillStyle = block.translucentColor;
 									ctx2.globalCompositeOperation = 'destination-out';
 									ctx2.fill();
+
 									if (block.translucentColor === '#000') {
-										ctx2.save();
-											block.spriteMask(ctx2);
-										ctx2.restore();
+										block.spriteMask.draw(ctx2);
+									} else {
+										block.spriteMask.draw();
+										block.spriteMask.ctx.save();
+											block.spriteMask.ctx.translate(-block.x, -block.y);
+											block.spriteMask.ctx.beginPath();
+												block.spriteMask.ctx.moveTo(corners[0].x, corners[0].y);
+												block.spriteMask.ctx.lineTo(corners[1].x, corners[1].y);
+												block.spriteMask.ctx.lineTo(corners[2].x, corners[2].y);
+												block.spriteMask.ctx.lineTo(corners[3].x, corners[3].y);
+												block.spriteMask.ctx.arc(
+													source.x, source.y,
+													source.rad,
+													ang0, ang1,
+													angDiff(ang0, ang1) > 0
+												);
+												block.spriteMask.ctx.lineTo(corners[0].x, corners[0].y);
+											block.spriteMask.ctx.fillStyle = '#000';
+											block.spriteMask.ctx.globalCompositeOperation = 'destination-out';
+											block.spriteMask.ctx.fill();
+										block.spriteMask.ctx.restore();
+										ctx2.drawImage(block.spriteMask.can, block.x - (block.clipRad / 4), block.y - (block.clipRad / 4));
+
+										ctx2.globalCompositeOperation = 'source-atop';
+										ctx2.fill();
+										ctx2.drawImage(block.spriteMask.can, block.x - (block.clipRad / 4), block.y - (block.clipRad / 4));
 									}
-									ctx2.globalCompositeOperation = 'source-atop';
-									ctx2.fill();
-									// if (block.translucentColor !== '#000') {
-									// 	ctx2.save();
-									// 		block.spriteMask(ctx2);
-									// 	ctx2.restore();
-									// }
 								});
 
 								// Add light to light from other sources
@@ -298,7 +335,7 @@ export module Light {
 	}
 
 	/** Light emitting object */
-	export class Source {
+	export class Source extends Bindable {
 		/** Direction light is pointing; only matters if light arc is set */
 		public active: boolean = true;
 		public ang: number = 0;
@@ -328,6 +365,7 @@ export module Light {
 			arc: number = 6.2832,
 			edgeBlur: number = 0
 		) {
+			super();
 			this._rad = rad;
 			this._arc = arc;
 			this._edgeBlur = edgeBlur;
@@ -448,13 +486,21 @@ export module Light {
 	}
 
 	/** Light blocking / shadow casting object */
-	export class Block {
+	export class Block extends Bindable {
 		public mask: {x: number, y: number}[];
-		public maskCenter: {x: number, y: number};
-		public _ang: number = 0;
 		public clipRad: number;
 		public lightArea: LightArea;
-		public spriteMask: (ctx: CanvasRenderingContext2D)=>void;
+		public spriteMask: {
+			draw: (ctx?: CanvasRenderingContext2D, block?: Block)=>void,
+			mask: (ctx: CanvasRenderingContext2D)=>void,
+			can?: HTMLCanvasElement,
+			ctx?: CanvasRenderingContext2D
+		} = {
+			draw: null, 
+			mask: null
+		};
+		private _ang: number = 0;
+		private _transColor: string;
 
 		/**
 		 	Mask is the polygon which blocks light
@@ -470,10 +516,11 @@ export module Light {
 			public x: number,
 			public y: number,
 			mask: {x: number, y: number}[] | {width: number, height: number} | number,
-			spriteMask?: HTMLImageElement | ((ctx: CanvasRenderingContext2D)=>void),
+			spriteMask?: (ctx: CanvasRenderingContext2D)=>void,
 			public blockLightInside: boolean = false,
-			public translucentColor = '#000'
+			translucentColor = '#000'
 		) {
+			super();
 			if (!World.area.light) {
 				console.error('Bunas Error - Light: Tried to add Block before calling Area.toggleLight().');
 				return;
@@ -481,9 +528,18 @@ export module Light {
 			World.area.light.addBlock(this);
 			this.lightArea = World.area.light;
 
+			// Mask is the radius of a circle
 			if (typeof mask === 'number') {
 				this.clipRad = mask;
+				this.bound = {
+					obj: null,
+					xOffset: 0,
+					yOffset: 0,
+					xCenter: mask,
+					yCenter: mask
+				};
 			} else {
+				// Mask is the width and height of a rectangle
 				if (!Array.isArray(mask)) {
 					let w = mask.width / 2,
 							h = mask.height / 2;
@@ -502,39 +558,72 @@ export module Light {
 						maxY = this.mask.reduce((max, p) => Math.max(max, p.y), this.mask[0].y);
 				
 				this.clipRad = Math.sqrt(Math.pow(maxX - minX, 2) + Math.pow(maxY - minY, 2)) / 2;
-				this.maskCenter = {
-					x: minX + ((maxX - minX) / 2),
-					y: minY + ((maxY - minY) / 2)
+				this.bound = {
+					obj: null,
+					xOffset: 0,
+					yOffset: 0,
+					xCenter: minX + ((maxX - minX) / 2),
+					yCenter: minY + ((maxY - minY) / 2)
 				};
 			}
 
-			if (typeof spriteMask === 'undefined') {
-				if (typeof this.mask === 'number') {
-					this.spriteMask = ctx => {
-						ctx.beginPath();
-							ctx.arc(this.x, this.y, this.clipRad, 0, Math.PI * 2);
-						ctx.fill();
+			this._transColor = translucentColor;
+
+			this.spriteMask.mask = spriteMask;
+			this.setSpriteMask();
+		}
+
+		private setSpriteMask() {
+			if (this._transColor === '#000' && this.spriteMask.mask) {
+				this.spriteMask.draw = this.spriteMask.mask;
+			} else {
+				if (!this.spriteMask.can) {
+					this.spriteMask.can = document.createElement('canvas');
+					this.spriteMask.ctx = this.spriteMask.can.getContext('2d');
+				}
+				let sCan = this.spriteMask.can,
+						sCtx = this.spriteMask.ctx;
+				sCan.width = sCan.height = this.clipRad * 2.5;
+				sCtx.translate(this.clipRad / 4, this.clipRad / 4);
+				sCtx.fillStyle = this._transColor;
+
+				if (typeof this.spriteMask.mask === 'undefined') {
+					this.spriteMask.draw = () => {
+						sCtx.save();
+							sCtx.clearRect(-this.clipRad / 4, -this.clipRad / 4, sCan.width, sCan.height);
+							sCtx.translate(-this.x, -this.y);
+							sCtx.beginPath();
+								if (this.mask) {
+									this.mask.forEach(p => sCtx.lineTo(p.x, p.y));
+								} else {
+									sCtx.arc(this.x, this.y, this.clipRad, 0, Math.PI * 2);
+								}
+								sCtx.closePath();
+							sCtx.fill();
+						sCtx.restore();
 					}
 				} else {
-					this.spriteMask = ctx => {
-						ctx.translate(this.x, this.y);
-						ctx.rotate(this._ang);
-						ctx.beginPath();
-							(this.mask as {x: number, y: number}[]).forEach(p => ctx.lineTo(p.x, p.y));
-						ctx.closePath();
-						ctx.fill();
+					this.spriteMask.draw = () => {
+						sCtx.save();
+							sCtx.clearRect(-this.clipRad / 4, -this.clipRad / 4, sCan.width, sCan.height);
+							sCtx.translate(-this.x, -this.y);
+							this.spriteMask.mask(sCtx);
+						sCtx.restore();
+						sCtx.globalCompositeOperation = 'source-in';
+							sCtx.fillRect(-this.clipRad / 4, -this.clipRad / 4, sCan.width, sCan.height);
+						sCtx.globalCompositeOperation = 'source-over';
 					}
 				}
-			} else if (typeof spriteMask === 'function') {
-				this.spriteMask = spriteMask;
-			} else {
-				this.spriteMask = ctx => {
-					ctx.save();
-						ctx.translate(this.x, this.y);
-						ctx.rotate(this._ang);
-						ctx.drawImage(spriteMask, this.x, this.y);
-					ctx.restore();
-				}
+			}
+		}
+
+		get translucentColor(): string {
+			return this._transColor;
+		}
+		set translucentColor(newCol: string) {
+			if (newCol !== this.translucentColor) {
+				this._transColor = newCol;
+				this.setSpriteMask();
 			}
 		}
 
@@ -547,12 +636,12 @@ export module Light {
 					let xDiff = Math.cos(newVal - this._ang),
 							yDiff = Math.sin(newVal - this._ang);
 					this.mask.forEach(p => {
-						p.x -= this.maskCenter.x,
-						p.y -= this.maskCenter.y;
+						p.x -= this.bound.xCenter,
+						p.y -= this.bound.yCenter;
 						let newX = (p.x * xDiff) - (p.y * yDiff),
 						newY = (p.x * yDiff) + (p.y * xDiff);
-						p.x = newX + this.maskCenter.x;
-						p.y = newY + this.maskCenter.y;
+						p.x = newX + this.bound.xCenter;
+						p.y = newY + this.bound.yCenter;
 					});
 				}
 				this._ang = newVal;

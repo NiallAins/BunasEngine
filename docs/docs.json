@@ -3,6 +3,16 @@
 		"d": {
 			"desc": "The following functions and classes are in global scope and so can be imported directly."
 		},
+		"f": {
+			"bindPosition": {
+				"desc": " Match a GameObjects position and angle to this GameObjects position and angle ",
+				"snip": "public bindPosition(\n    obj: GameObject,\n    xOffset: number = 0,\n    yOffset: number = 0,\n    angOffset?: number,\n    xCenter: number = 0,\n    yCenter: number = 0\n) "
+			},
+			"unbindPosition": {
+				"desc": " ",
+				"snip": "public unbindPosition() "
+			}
+		},
 		"c": {
 			"GameObject": {
 				"d": {
@@ -125,6 +135,10 @@
 			"cH": {
 				"desc": " Target canvas element height ",
 				"snip": "let cH: number"
+			},
+			"maxDelta": {
+				"desc": " Max value for dT ",
+				"snip": "let maxDelta: number = 3"
 			}
 		},
 		"f": {
@@ -183,7 +197,7 @@
 		},
 		"f": {
 			"setImageSmoothing": {
-				"desc": "\t\tTurn on/off image smoothing (antialiasing)\r\n\t\tThis is turned off by default\r\n\t",
+				"desc": "\t\tTurn on/off image smoothing (anti-aliasing)\r\n\t\tThis is turned off by default\r\n\t",
 				"snip": "function setImageSmoothing(on: boolean) "
 			},
 			"setDuration": {
@@ -314,17 +328,17 @@
 				"m": {
 					"Class Constructor": {
 						"desc": " Angle, Power and Rate can be given as a constant or as a range to randomly choose from ",
-						"snip": "constructor(\n    public x      : number,\n    public y      : number,\n    ang?   : number | number[],\n    power? : number | number[],\n    rate?  : number | number[],\n) "
+						"snip": "constructor(\n    public x: number,\n    public y: number,\n    ang?   : number | number[],\n    power? : number | number[],\n    rate?  : number | number[],\n) "
 					}
 				},
 				"v": {
 					"x": {
 						"desc": "",
-						"snip": "public x      : number"
+						"snip": "public x: number"
 					},
 					"y": {
 						"desc": "",
-						"snip": "public y      : number"
+						"snip": "public y: number"
 					}
 				}
 			}
@@ -468,7 +482,7 @@
 				"m": {
 					"Class Constructor": {
 						"desc": "\t\t \tMask is the polygon which blocks light\r\n\t\t\t  - If mask is a polygon, it is given as an array of points which define the shape\r\n\t\t\t  - If mask is a rectangle, it can be given as an object of {width, height}\r\n\t\t\t  - If mask is a circle, it is given as a number of the circle's radius length\r\n\t\t\tspriteMask is an optional sprite shape which will be removed from the shadow in addition to the mask\r\n\t\t\t  - spriteMask allows a block to be made for a complex spirte shape but using a simple underlying polygon mask to improve render time\r\n\t\t\tblockLightInside, if true, blocks all light from a light source if it is within the bounds of the block\r\n\t\t\ttranslucent color is the colour light passing through the blocker will turn if it is not fully opaque\r\n\t\t ",
-						"snip": "constructor(\n    public x: number,\n    public y: number,\n    mask: {x: number, y: number}[] | {width: number, height: number} | number,\n    spriteMask?: HTMLImageElement | ((ctx: CanvasRenderingContext2D)=>void),\n    public blockLightInside: boolean = false,\n    public translucentColor = '#000'\n) "
+						"snip": "constructor(\n    public x: number,\n    public y: number,\n    mask: {x: number, y: number}[] | {width: number, height: number} | number,\n    spriteMask?: (ctx: CanvasRenderingContext2D)=>void,\n    public blockLightInside: boolean = false,\n    translucentColor = '#000'\n) "
 					},
 					"delete": {
 						"desc": " ",
@@ -487,10 +501,6 @@
 					"blockLightInside": {
 						"desc": "",
 						"snip": "public blockLightInside: boolean = false"
-					},
-					"translucentColor": {
-						"desc": "",
-						"snip": "public translucentColor = '#000'"
 					}
 				}
 			}
