@@ -1,7 +1,7 @@
 {
   "name": "bunas",
   "version": "1.0.0",
-  "description": "The little typescript game engine the could",
+  "description": "The little typescript game engine that could",
   "main": "gulpFile.js",
   "directories": {
     "doc": "docs"
