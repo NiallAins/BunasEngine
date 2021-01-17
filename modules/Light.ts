@@ -337,17 +337,17 @@ export module Light {
 	/** Light emitting object */
 	export class Source extends Bindable {
 		/** Direction light is pointing; only matters if light arc is set */
-		public active: boolean = true;
 		public ang: number = 0;
 		public mask: HTMLCanvasElement;
 		public lightArea: LightArea;
+		public customMask: (ctx: CanvasRenderingContext2D, radius: number, color: string)=>void;
+		public active: boolean = true;
 		private maskCtx: CanvasRenderingContext2D;
 		private _rad: number;
 		private _color: string;
 		private transColor: string;
 		private _arc: number;
 		private _edgeBlur: number;
-		public customMask: (ctx: CanvasRenderingContext2D, radius: number, color: string)=>void;
 
 		/**
 		  rad is the radius of the light circle cast.

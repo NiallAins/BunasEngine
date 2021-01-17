@@ -7,7 +7,15 @@ import { Light } from './Light';
 // Types and Interfaces
 //
 export abstract class Bindable {
-	public bound: {obj: GameObject, xOffset: number, yOffset: number, angOffset?: number, xCenter?: number, yCenter?: number};
+	public bound: {
+		obj: GameObject,
+		xOffset: number,
+		yOffset: number,
+		angOffset?: number,
+		xCenter?: number,
+		yCenter?: number,
+		matchAng?: boolean
+	};
 
 	/** Match a GameObjects position and angle to this GameObjects position and angle */
 	public bindPosition(
@@ -16,13 +24,19 @@ export abstract class Bindable {
 		yOffset: number = 0,
 		angOffset?: number,
 		xCenter: number = 0,
-		yCenter: number = 0
+		yCenter: number = 0,
+		matchAng: boolean = false
 	) {
-		this.bound = {obj: obj, xOffset: xOffset, yOffset: yOffset};
+		this.bound = {
+			obj: obj,
+			xOffset: xOffset,
+			yOffset: yOffset
+		};
 		if (typeof angOffset !== 'undefined') {
 			this.bound.angOffset = angOffset;
 			this.bound.xCenter = xCenter;
 			this.bound.yCenter = yCenter;
+			this.bound.matchAng = matchAng;
 		}
 	}
 	/** */
@@ -98,12 +112,19 @@ export abstract class GameObject extends Bindable {
 		World.area.add(this);
 	}
 
+	/** Returns false if object is not being rendered in an area */
+	get alive(): boolean {
+		return !!this.area;
+	}
+
 	get z(): number {
 		return this._z;
 	}
 	set z(newZ: number) {
-		this._z = newZ;
-		this.area.zSort(this);
+		if (newZ !== this._z) {
+			this._z = newZ;
+			this.area.zSort(this);
+		}
 	}
 
 	/** Called on each Engine step event */
@@ -124,12 +145,16 @@ export abstract class GameObject extends Bindable {
 	public onMouseOver?(m: Input.Mouse): void;
 
 	/**
-		Returns instances in objects with overlapping clip boxes
-		When onlyInView is true, search is limited to only objects within current view
+		Returns instances of other GameObjects with overlapping clip boxes
+		If objects is not provided, all GameObjects in area are checked
+		When checkOutsideView is false, search is limited to only objects within current view
 	*/
-	public getCollisions(objects: GameObject[], onlyInView: boolean = false): GameObject[] {
+	public getCollisions(
+		objects: GameObject[] = this.area.objs,
+		checkOutsideView: boolean = false
+	): GameObject[] {
 		return objects.filter(o => (
-			(!onlyInView || o.inView) &&
+			(checkOutsideView || o.inView) &&
 			o.x + o.colBox.x < this.x + this.colBox.x + this.colBox.width &&
 			o.x + o.colBox.x + o.colBox.width > this.x + this.colBox.x &&
 			o.y + o.colBox.y < this.y + this.colBox.y + this.colBox.height &&
@@ -137,7 +162,10 @@ export abstract class GameObject extends Bindable {
 		));
 	}
 
-	/* Returns true if rectangle defined by parameters is within objects colBox */
+	/**
+		Returns true if point [x, y] (or rectangle [x, y, w, h] if provided) is within objects colBox
+		x can be given as a GameObject, to use that objects colBox as the rectangle to check
+	*/
 	public checkCollision(x: number | GameObject, y?: number, w: number = 0, h: number = 0): boolean {
 		if (typeof x !== 'number') {
 			y = x.y + x.colBox.y;
@@ -162,6 +190,8 @@ export abstract class GameObject extends Bindable {
 
 	/* Removes instance from game */
 	public delete(): void {
-		this.area.remove(this);
+		if (this.area) {
+			this.area.remove(this);
+		}
 	}
 }

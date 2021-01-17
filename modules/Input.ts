@@ -30,7 +30,7 @@ export module Input {
 	interface MouseButton {
 		down       : boolean;
 		up         : boolean;
-		doubleUp   : boolean;
+		doubleDown : boolean;
 		pressed    : boolean;
 		drag       : boolean;
 		startDrag  : boolean;
@@ -54,7 +54,7 @@ export module Input {
 	const CLICKCODE: string[] = ['left', 'middle', 'right'];
 	let
 		dragCheck = {
-			tolerance : 40,
+			tolerance : 10,
 			originX   : 0,
 			originY   : 0,
 			dragPts   : []
@@ -76,7 +76,7 @@ export module Input {
 			left: {
 				down       : false,
 				up         : false,
-				doubleUp   : false,
+				doubleDown : false,
 				pressed    : false,
 				drag       : false,
 				startDrag  : false,
@@ -87,7 +87,7 @@ export module Input {
 			right: {
 				down       : false,
 				up         : false,
-				doubleUp   : false,
+				doubleDown : false,
 				pressed    : false,
 				drag       : false,
 				startDrag  : false,
@@ -99,7 +99,7 @@ export module Input {
 
 		/**
 			Current state of keyboard input
-			Pressed stores names of all keys currently pressed
+			key.pressed stores name of all keys currently pressed
 		*/
 		key: KeyBoard = {
 			up      : null,
@@ -120,14 +120,20 @@ export module Input {
 		window.onkeydown = onKeyDown.bind(this);
 		window.onkeyup   = onKeyUp.bind(this);
 
-		toggleContextMenu(false);
+		allowContextMenu(false);
 	};
 
 	export function step(): void {
 		emitClickableObjectEvents();
 
-		resetMouseButton(mouse.left);
-		resetMouseButton(mouse.right);
+		[mouse.left, mouse.right].forEach(b => {
+			b.down       = false;
+			b.up         = false;
+			b.doubleDown = false;
+			b.drag       = false;
+			b.startDrag  = false;
+			b.endDrag    = false;
+		});
 
 		key.down = null;
 		key.up   = null;
@@ -135,18 +141,18 @@ export module Input {
 
 	/** Sets number of pixels cursor must move while pressed before drag event is triggered */
 	export function setDragTolerance(tolerance: number): void {
-		dragCheck.tolerance = tolerance;
+		dragCheck.tolerance = tolerance * tolerance;
 	};
 	/** Sets maximum milliseconds between clicks in a double click in order for event to be trigged */
-	export function setDoubleClickWait(v: number): void {
-		dblClickWait = v;
+	export function setDoubleClickTiming(wait: number): void {
+		dblClickWait = wait;
 	};
 
 	/**
 		Enable/Disable browser context menu on right click
 		Disabled by default
 	 */
-	export function toggleContextMenu(show: boolean = true): void {
+	export function allowContextMenu(show: boolean = true): void {
 		if (show) {
 			window.oncontextmenu = function (e) { };
 		} else {
@@ -172,22 +178,26 @@ export module Input {
 
 	/**
 		Sets cursor type if CSS cursor name is provided
-		Sets a custom cursor to be rendered if draw function is provided
+		Sets a custom cursor to be rendered if draw function, or image is provided is provided
 	*/
-	export function setCursor(cursor: ((ctx: CanvasRenderingContext2D, delta: number)=>void) | string): void {
+	export function setCursor(cursor: string | HTMLImageElement | ((ctx: CanvasRenderingContext2D, dT: number)=>void)): void {
 		if (typeof cursor === 'string') {
 			(Engine.getCanvasEl() as HTMLElement).style.cursor = cursor;
 		} else {
 			(Engine.getCanvasEl() as HTMLElement).style.cursor = 'none';
-			customCursor = cursor;
+			if (typeof cursor === 'function') {
+				customCursor = cursor;
+			} else {
+				customCursor = ctx => ctx.drawImage(cursor, 0, 0);
+			}
 		}
 	};
 
-	export function drawCursor(ctx: CanvasRenderingContext2D, delta: number): void {
+	export function drawCursor(ctx: CanvasRenderingContext2D, dT: number): void {
 		if (customCursor) {
 			ctx.save();
 				ctx.translate(mouse.x, mouse.y);
-				customCursor(ctx, delta);
+				customCursor(ctx, dT);
 			ctx.restore();
 		}
 	};
@@ -229,25 +239,26 @@ export module Input {
 		});
 	};
 
-	/** Calls setMouseListener with width and height of provided sprite */
-	export function setMouseListenerFromSprite(
-		g: GameObject,
-		sprite: Graphics.SpriteSheet,
-		centered: boolean = false
-	): void {
-		setMouseListener(g, sprite.width, sprite.height, false, centered);
-	};
-
 
 	//
 	// Private Methods
 	//
 
 	function onMouseDown(e: MouseEvent): void {
+		let b = mouse[CLICKCODE[e.button]];
+
 		dragCheck.originX = e.clientX;
 		dragCheck.originY = e.clientY;
-		mouse[CLICKCODE[e.button]].pressed = true;
-		mouse[CLICKCODE[e.button]].down    = true;
+		b.pressed = true;
+		b.down    = true;
+
+		if (b.dblCheck) {
+			b.doubleUp = true; 
+			b.dblCheck = false;
+		} else {
+			b.dblCheck = true;
+			setTimeout(() => b.dblCheck = false, dblClickWait);
+		}
 	};
 
 	function onMouseUp(e: MouseEvent): void {
@@ -260,14 +271,7 @@ export module Input {
 			b.endDrag  = true;
 			b.dragging = false;
 		}
-
-		if (b.dblCheck) {
-			b.doubleUp = true; 
-			b.dblCheck = false;
-		} else {
-			b.dblCheck = true;
-			setTimeout(() => b.dblCheck = false, dblClickWait);
-		}
+		dragCheck.dragPts = [];
 	};
 
 	function onMouseMove(e: MouseEvent): void {
@@ -280,40 +284,29 @@ export module Input {
 
 	function checkDrag(b: MouseButton): void {
 		if (b.pressed) {
-			if (!b.dragging) {
+			if (b.dragging) {
+				b.drag = true;
+				b.dragPts.push({
+					x: mouse.x,
+					y: mouse.y
+				});
+			} else {
 				if (
-					Math.sqrt(
-						Math.pow(mouse.y - dragCheck.originY, 2) +
-						Math.pow(mouse.x - dragCheck.originX, 2)
-					) > dragCheck.tolerance
+					Math.pow(mouse.y - dragCheck.originY, 2) +
+					Math.pow(mouse.x - dragCheck.originX, 2)
+					> dragCheck.tolerance
 				) {
 					b.dragging = true;
-					b.dragPts = [];
-					dragCheck.dragPts.forEach(p => b.dragPts.push({ x: p.x, y: p.y }));
-					dragCheck.dragPts = [];
+					b.drag = true;
+					b.dragPts = dragCheck.dragPts.slice();
 				} else {
 					dragCheck.dragPts.push({
 						x: mouse.x,
 						y: mouse.y
 					});
 				}
-			} else {
-				b.drag = true;
-				b.dragPts.push({
-					x: mouse.x,
-					y: mouse.y
-				});
 			}
 		}
-	};
-
-	function resetMouseButton(b: MouseButton): void {
-		b.down       = false;
-		b.up         = false;
-		b.doubleUp   = false;
-		b.drag       = false;
-		b.startDrag  = false;
-		b.endDrag    = false;
 	};
 
 	function onKeyDown(e: KeyboardEvent): void {
@@ -328,6 +321,7 @@ export module Input {
 		key.pressed.splice(key.pressed.indexOf(e.code), 1);
 	};
 
+	// TODO: add view position to object position
 	function emitClickableObjectEvents() {
 		clickableObjects.forEach(o => {
 			if (o.obj.onMouseOver) {

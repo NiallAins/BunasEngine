@@ -7,7 +7,15 @@ import { Light } from './Light';
 // Types and Interfaces
 //
 export abstract class Bindable {
-	public bound: {obj: GameObject, xOffset: number, yOffset: number, angOffset?: number, xCenter?: number, yCenter?: number};
+	public bound: {
+		obj: GameObject,
+		xOffset: number,
+		yOffset: number,
+		angOffset?: number,
+		xCenter?: number,
+		yCenter?: number,
+		matchAng?: boolean
+	};
 
 	/** Match a GameObjects position and angle to this GameObjects position and angle */
 	public bindPosition(
@@ -16,13 +24,19 @@ export abstract class Bindable {
 		yOffset: number = 0,
 		angOffset?: number,
 		xCenter: number = 0,
-		yCenter: number = 0
+		yCenter: number = 0,
+		matchAng: boolean = false
 	) {
-		this.bound = {obj: obj, xOffset: xOffset, yOffset: yOffset};
+		this.bound = {
+			obj: obj,
+			xOffset: xOffset,
+			yOffset: yOffset
+		};
 		if (typeof angOffset !== 'undefined') {
 			this.bound.angOffset = angOffset;
 			this.bound.xCenter = xCenter;
 			this.bound.yCenter = yCenter;
+			this.bound.matchAng = matchAng;
 		}
 	}
 	/** */
@@ -98,12 +112,19 @@ export abstract class GameObject extends Bindable {
 		World.area.add(this);
 	}
 
+	/** Returns false if object is not being rendered in an area */
+	get alive(): boolean {
+		return !!this.area;
+	}
+
 	get z(): number {
 		return this._z;
 	}
 	set z(newZ: number) {
-		this._z = newZ;
-		this.area.zSort(this);
+		if (newZ !== this._z) {
+			this._z = newZ;
+			this.area.zSort(this);
+		}
 	}
 
 	/** Called on each Engine step event */
@@ -124,12 +145,16 @@ export abstract class GameObject extends Bindable {
 	public onMouseOver?(m: Input.Mouse): void;
 
 	/**
-		Returns instances in objects with overlapping clip boxes
-		When onlyInView is true, search is limited to only objects within current view
+		Returns instances of other GameObjects with overlapping clip boxes
+		If objects is not provided, all GameObjects in area are checked
+		When checkOutsideView is false, search is limited to only objects within current view
 	*/
-	public getCollisions(objects: GameObject[], onlyInView: boolean = false): GameObject[] {
+	public getCollisions(
+		objects: GameObject[] = this.area.objs,
+		checkOutsideView: boolean = false
+	): GameObject[] {
 		return objects.filter(o => (
-			(!onlyInView || o.inView) &&
+			(checkOutsideView || o.inView) &&
 			o.x + o.colBox.x < this.x + this.colBox.x + this.colBox.width &&
 			o.x + o.colBox.x + o.colBox.width > this.x + this.colBox.x &&
 			o.y + o.colBox.y < this.y + this.colBox.y + this.colBox.height &&
@@ -137,7 +162,10 @@ export abstract class GameObject extends Bindable {
 		));
 	}
 
-	/* Returns true if rectangle defined by parameters is within objects colBox */
+	/**
+		Returns true if point [x, y] (or rectangle [x, y, w, h] if provided) is within objects colBox
+		x can be given as a GameObject, to use that objects colBox as the rectangle to check
+	*/
 	public checkCollision(x: number | GameObject, y?: number, w: number = 0, h: number = 0): boolean {
 		if (typeof x !== 'number') {
 			y = x.y + x.colBox.y;
@@ -162,12 +190,15 @@ export abstract class GameObject extends Bindable {
 
 	/* Removes instance from game */
 	public delete(): void {
-		this.area.remove(this);
+		if (this.area) {
+			this.area.remove(this);
+		}
 	}
 }
 import { Engine } from './Engine';
 import { World } from './World';
 import { Input } from './Input';
+import { GameObject } from './Common';
 
 /** Provides helper functions to debug application */
 export module Debug {
@@ -179,8 +210,12 @@ export module Debug {
 		dTCounter	:	number = +new Date(),
 		logs      : string[] = [],
 		permLog   : string[] = [],
+		clipBoxes	: GameObject[] = [],
+		colBoxes	: GameObject[] = [],
+		positions : GameObject[] = [],
 		container : HTMLDivElement = document.createElement('div'),
-		output    : HTMLPreElement = document.createElement('pre');
+		output    : HTMLPreElement = document.createElement('pre'),
+		color			: string[] = ['dodgerblue', 'tomato'];
 	
 	container.setAttribute('style', `
 		position: fixed;
@@ -189,8 +224,9 @@ export module Debug {
 		top: 0px;
 		left: 20px;
 		width: 60vw;
-		pointer-events: none;
+		color: ${color[0]};
 		text-shadow: 0 0 2px #000;
+		pointer-events: none;
 	`);
 	container.appendChild(output);
 
@@ -200,13 +236,15 @@ export module Debug {
 	export let
 		/** Debugger output font size */
 		fontSize        : number = 14,
-		/** Degugger output font color */
-		color           : string = 'dodgerblue',
 		/** Toggle default proporties displayed in debugger */
-		defaultOptions  : {[option: string] : boolean} = {
+		options  : {[option: string] : boolean} = {
 			dt: true,
 			view: true,
-			input : true
+			input : true,
+			area: true,
+			colBox: false,
+			clipBox: false,
+			positions: false
 		};
 
 	//
@@ -235,7 +273,127 @@ export module Debug {
 		permLog = [];
 	};
 
+	/** Draw given objects clip boxes on next draw  */
+	export function drawClipBox(...objs: GameObject[]) {
+		clipBoxes = [...this.clipBoxes, objs];
+	}
+
+	/** Draw given objects collision boxes on next draw  */
+	export function drawColBox(...objs: GameObject[]) {
+		colBoxes = [...this.colBoxes, objs];
+	}
+
+	/** Draw given objects collision boxes on next draw  */
+	export function drawPosition(...objs: GameObject[]) {
+		positions = [...this.positions, objs];
+	}
+
+	/** Sets colors of debug text */
+	export function setColor(primaryColor: string, secondaryColor?: string) {
+		color[0] = primaryColor;
+		if (secondaryColor) {
+			color[1] = secondaryColor;
+		}
+		this.container.style.color = color[0];
+	}
+
 	export function draw(ctx: CanvasRenderingContext2D, dT: number): void {
+		ctx.fillStyle = color[0];
+		ctx.strokeStyle = color[0];
+		ctx.lineWidth = 1;
+
+		// Collision boxes
+		ctx.save();
+			ctx.strokeStyle = color[options.clipBox || clipBoxes.length ? 1 : 0];
+			if (options.colBox) {
+				World.currentAreas.forEach(a => {
+					ctx.save();
+						ctx.translate(-a.view.x, -a.view.y);
+						a.objs.forEach(o => {
+							if (o.inView) {
+								ctx.strokeRect(
+									o.x + o.colBox.x,
+									o.y + o.colBox.y,
+									o.colBox.width,
+									o.colBox.height
+								);
+							}
+						});
+					ctx.restore();
+				});
+			} else if (colBoxes.length) {
+				colBoxes.forEach(o => {
+					if (o.inView) {
+						ctx.save();
+							ctx.translate(-o.area.view.x, -o.area.view.y);
+							ctx.strokeRect(
+								o.x + o.colBox.x,
+								o.y + o.colBox.y,
+								o.colBox.width,
+								o.colBox.height
+							);
+						ctx.restore();
+					}
+				});
+			}
+		ctx.restore();
+
+		// Clip boxes
+		if (options.clipBox) {
+			World.currentAreas.forEach(a => {
+				ctx.save();
+					ctx.translate(-a.view.x, -a.view.y);
+					a.objs.forEach(o => {
+						if (o.inView) {
+							ctx.strokeRect(
+								o.x + o.clipBox.x,
+								o.y + o.clipBox.y,
+								o.clipBox.width,
+								o.clipBox.height
+							);
+						}
+					});
+				ctx.restore();
+			});
+		} else if (clipBoxes.length) {
+			clipBoxes.forEach(o => {
+				if (o.inView) {
+					ctx.save();
+						ctx.translate(-o.area.view.x, -o.area.view.y);
+						ctx.strokeRect(
+							o.x + o.clipBox.x,
+							o.y + o.clipBox.y,
+							o.clipBox.width,
+							o.clipBox.height
+						);
+					ctx.restore();
+				}
+			});
+		}
+
+		// Positions
+		if (options.positions) {
+			World.currentAreas.forEach(a => {
+				ctx.save();
+					ctx.translate(-a.view.x, -a.view.y);
+					a.objs.forEach(o => {
+						if (o.inView) {
+							ctx.fillRect(o.x - 2, o.y - 2, 4, 4);
+						}
+					});
+				ctx.restore();
+			});
+		} else if (positions.length) {
+			positions.forEach(o => {
+				if (o.inView) {
+					ctx.save();
+						ctx.translate(-o.area.view.x, -o.area.view.y);
+						ctx.fillRect(o.x - 2, o.y - 2, 4, 4);
+					ctx.restore();
+				}
+			});
+		}
+
 		if (+new Date() - dTCounter < 250) {
 			logs = [];
 			return;
@@ -251,18 +409,22 @@ export module Debug {
 		`);
 
 		output.innerHTML = '';
-		if (defaultOptions.dt) {
+		if (options.dt) {
 			output.innerHTML +=
 				`dT    : ${dT.toFixed(3)}<br/>`;
 		}
-		if (defaultOptions.view) {
+		if (options.area) {
 			output.innerHTML +=
-				`View  :<br/>` +
+				`Area  : ${World.currentAreas.map(a => a.name).join(',')}<br/>`;
+		}
+		if (options.view) {
+			output.innerHTML +=
+				`View  : <br/>` +
 				`    x: ${World.area.view.x.toFixed(2)},<br/>` +
 				`    y: ${World.area.view.y.toFixed(2)},<br/>` +
 				`    z: ${World.area.view.z.toFixed(2)}<br/>`;
 		}
-		if (defaultOptions.input) {
+		if (options.input) {
 			output.innerHTML +=
 				`Input : ${getInputData()}<br/><br/>`;
 		}
@@ -270,6 +432,8 @@ export module Debug {
 
 		output.scrollTop = output.scrollHeight;
 		logs = [];
+		clipBoxes = [];
+		colBoxes = [];
 	};
 
 	//
@@ -281,21 +445,12 @@ export module Debug {
 		str.push(`    mouseState =`);
 		str.push(`        x: ${Input.mouse.x}`);
 		str.push(`        y: ${Input.mouse.y}`);
-		if (Input.mouse.left.pressed)  str.push(`    left.pressed`);
-		if (Input.mouse.left.dragging) str.push(`    left.dragging ${Input.mouse.left.drag ? ' left.drag' : ''}`);
-		if (Input.mouse.left.dragPts.length) {
-			str.push(`        left.dragPts: [<br/>${Input.mouse.left.dragPts.reduce((str, p) =>
-				str = (str.length > 200 ? '...' + str.substr(-200) : str) + '(' + p.x + ', ' + p.y + ')', '')}]`);
-		}
-		if (Input.mouse.right.pressed)  str.push(`    right.pressed`);
-		if (Input.mouse.right.dragging) str.push(`    right.dragging ${Input.mouse.right.drag ? 'right.drag' : ''}`);
-		if (Input.mouse.right.dragPts.length) {
-			str.push(`        right.dragPts: [<br/>${Input.mouse.right.dragPts.reduce((str, p) =>
-				str = (str.length > 200 ? '...' + str.substr(-200) : str) + '(' + p.x + ', ' + p.y + ')', '')}]`);
-		}
+		if (Input.mouse.left.pressed)  str.push(`        left.pressed`);
+		if (Input.mouse.left.dragging) str.push(`        left.dragging ${Input.mouse.left.drag ? ' left.drag' : ''}`);
+		if (Input.mouse.right.pressed)  str.push(`        right.pressed`);
+		if (Input.mouse.right.dragging) str.push(`        right.dragging ${Input.mouse.right.drag ? 'right.drag' : ''}`);
 		return str.join('<br/>');
 	};
-	
 }
 import { Debug } from './Debug';
 import { Input } from './Input';
@@ -505,7 +660,7 @@ export module Engine {
 				ctx.lineWidth = 10;
 				ctx.beginPath();
 					ctx.arc(
-						625, 295, 140,
+						cW / 2, cH / 2, 140,
 						(-Math.PI / 2),
 						(-Math.PI / 2) + ((Math.PI * 2) * (1 - fractionLoaded)),
 						false
@@ -635,6 +790,7 @@ export module Engine {
 import { Engine } from './Engine';
 import { GameObject } from './Common';
 import { Physics } from './Physics';
+import { Debug } from './Debug';
 
 /** Provides functions and classes for rendering bitmap and vector graphics on the canvas */
 export module Graphics {
@@ -1123,26 +1279,37 @@ export module Graphics {
 
 	/** Class to create a particle emitter */
 	export class Emitter extends GameObject {
-		private parts       : Particle[] = [];
+		public parts				: Particle[] = [];
 		private currentRate : number = 0;
-		private _grav       : Physics.Vec;
-		private _size       : number[] = [2, 2];
-		private _color      : string = 'dodgerblue';
-		private _lifespan   : number[] = [100, 100];
-		private _fade  			: number[] = [0.2, 0.2];
-		private _ang        : number[] = [0, 0];
-		private _power      : number[] = [1, 1];
-		private _rate       : number[] = [10, 10];
+		private deleted			: boolean = false;
+		
+		// Emitter
+		private _ang   : number[] = [0, 0];
+		private _power : number[] = [1, 0];
+		private _rate  : number[] = [-1, 0];
+		private _grav  : Physics.Vec;
 
-		/** Angle, Power and Rate can be given as a constant or as a range to randomly choose from */
+		// Point particles
+		private _size     : number[] = [2, 0];
+		private _color    : string[] = ['dodgerblue'];
+		private _lifespan : number[] = [100, 0];
+		private _fade  		: number[] = [-1, 0];
+
+		// Sprite particles
+		private _sprite		: HTMLImageElement | ((ctx: CanvasRenderingContext2D) => void);
+		private	_partAng  : number[] = [0, 0];
+		private _partDAng	: number[] = [0, 0];
+
+		/** Angle, Power and Rate can be given as a constant or as a range [lowest, highest] to randomly choose from */
 		constructor(
 			public x: number,
 			public y: number,
+			z: number,
 			ang?   : number | number[],
 			power? : number | number[],
 			rate?  : number | number[],
 		) {
-			super(x, y);
+			super(x, y, z);
 			if (ang) {
 				this._ang = this.configRange(ang);
 			}
@@ -1168,6 +1335,9 @@ export module Graphics {
 		set power(a: number | number[]) {
 			this._power = this.configRange(a);
 		}
+		/**
+		 * Time between particle emissions, set to -1 to stop emissions
+		 */
 		set rate(a: number | number[]) {
 			this._rate = this.configRange(a);
 		}
@@ -1178,16 +1348,25 @@ export module Graphics {
 		private configRange(p): number[] {
 			return typeof p === 'number' ? [p, 0] : [p[0], p[1] - p[0]];
 		}
-				
+
+		private getValue(range) {
+			if (typeof range[0] === 'string') {
+				return range[Math.floor(Math.random() * range.length)] as string;
+			} else {
+				return range[0] + (Math.random() * range[1]);
+			}
+		}
+
 		public setParticle(
 			size: number | number[],
-			color?: string,
+			color?: string | string[],
 			lifespan?: number | number[],
 			fade?: number | number[]
 		) {
+			this.sprite = null;
 			this._size = this.configRange(size);
 			if (color) {
-				this._color = color;
+				this._color = typeof color === 'string' ? [color] : color;
 			}
 			if (lifespan) {
 				this._lifespan = this.configRange(lifespan);
@@ -1197,110 +1376,176 @@ export module Graphics {
 			}
 		}
 
+		public setSpriteParticle(
+			sprite: ((ctx: CanvasRenderingContext2D, rand?: number)=>void) | HTMLImageElement,
+			lifespan?: number | number[],
+			fade?: number | number[],
+			ang?: number | number[],
+			dAng?: number | number[]
+		) {
+			this._sprite = sprite;
+			if (lifespan) {
+				this._lifespan = this.configRange(lifespan);
+			}
+			if (fade) {
+				this._fade = this.configRange(fade);
+			}
+			if (ang) {
+				this._partAng = this.configRange(ang);
+			}
+			if (dAng) {
+				this._partDAng = this.configRange(dAng);
+			}
+		}
+
+		public emit(amount: number, offset: number = 0) {
+			for (let i = 0; i < amount; i++) {
+				this.parts.push(new Particle(
+					this.x,
+					this.y,
+					this.getValue(this._lifespan),
+					new Physics.Vec(
+						this.getValue(this._power),
+						this.ang + this.getValue(this._ang), 
+						true
+					),
+					this.getValue(this._fade),
+					offset,
+					this._sprite || [
+						this.getValue(this._size),
+						this.getValue(this._color)
+					],
+					this._partAng ? this.getValue(this._partAng) : 0,
+					this._partDAng ? this.getValue(this._partDAng) : 0
+				));
+			}
+		}
+
 		public step(dt: number) {
-			this.currentRate += dt;
-			if (this.currentRate > this._rate[0]) {
-				for(let i = this._rate[0]; i < this.currentRate; i += this._rate[0]) {
-					this.parts.push(new Particle(
-						this.x,
-						this.y,
-						this._size[0] + (Math.random() * this._size[1]),
-						this._color,
-						this._lifespan[0] + (Math.random() * this._lifespan[1]),
-						new Physics.Vec(
-							this._power[0] + (Math.random() * this._power[1]),
-							this._ang[0] + (Math.random() * this._ang[1]), 
-							true
-						),
-						this._fade[0] + (Math.random() * this._fade[1]),
-						(this.currentRate - i) / this._rate[0]
-					));
-				}   
-				this.currentRate %= this._rate[0];
-				this.currentRate += Math.random() * this._rate[1];
+			if (this._rate[0] > -1) {
+				this.currentRate += dt;
+				if (this.currentRate > this._rate[0]) {
+					for(let i = this._rate[0]; i < this.currentRate; i += this._rate[0]) {
+						this.emit(1, (this.currentRate - i) / this._rate[0]);
+					}   
+					this.currentRate %= this._rate[0];
+					this.currentRate += Math.random() * this._rate[1];
+				}
 			}
 			this.parts.forEach((p, i) => {
-				p.lifespan -= dt;
-				if (p.lifespan < 0) {
-					p.delete(this.parts, i);
+				p.step(dt, this._grav);
+				if (p.opacity <= 0) {
+					this.parts.splice(i, 1);
 				}
-				p.step(this._grav);
 			});
+
+			if (this.deleted && this.parts.length === 0 ) {
+				super.delete();
+			}
 		}
 
 		public draw(ctx: CanvasRenderingContext2D, dt: number) {
-			ctx.beginPath();
-				this.parts.forEach(p => {
-					p.draw(ctx);
-				});
-			ctx.fill();
+			ctx.save();
+				this.parts.forEach(p => p.draw(ctx));
+			ctx.restore();
+		}
+
+		public delete(force: boolean = false) {
+			if (force) {
+				this.parts = [];
+				super.delete();
+			} else {
+				this.deleted = true;
+			}
 		}
 	}
 
 	class Particle {
-		private opacity: number = 1;
+		public opacity: number = 1;
+		private randomSeed: number;
 		public draw: (ctx: CanvasRenderingContext2D)=>void;
 
 		constructor (
 			private x         : number,
 			private y         : number,
-			private size      : number = 2,
-			private color     : string = 'black',
-			public  lifespan  : number = 1000,
+			public lifespan 	: number,
 			private velocity  : Physics.Vec,
-			private fade			: number = 0.2,
-			offset			      : number = 1
+			private fade			: number,
+			offset			      : number,
+			sprite: 
+				((ctx: CanvasRenderingContext2D, rand: number)=>void) |
+				HTMLImageElement |
+				[number, string],
+			private ang				: number,
+			private dAng			: number
 		) {
 			if (!velocity) {
 				this.velocity = new Physics.Vec(0, 0);
 			}
-			this.x += this.velocity.scale(offset).x - (this.size / 2);
-			this.y += this.velocity.scale(offset).y - (this.size / 2);
-
-			if (this.size <= 2) {
-				this.draw = (ctx) => {
-					ctx.moveTo(this.x, this.y);
-					ctx.rect(this.x, this.y, this.size, this.size);
-					if (this.opacity < 1) {
+			let rad = 0;
+			// Draw function
+			if (typeof sprite === 'function') {
+				this.randomSeed = Math.random();
+				this.draw = ctx => {
+					ctx.save();
 						ctx.globalAlpha = this.opacity;
-					}
-					if (ctx.strokeStyle !== this.color) {
-						ctx.strokeStyle = this.color;
-						ctx.lineWidth = 1;
-						ctx.stroke();
-						ctx.beginPath();
-					}
-					ctx.globalAlpha = 1;
-				}
-			} else {
-				this.draw = (ctx) => {
-					ctx.moveTo(this.x, this.y);
-					ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-					if (this.opacity < 1) {
-						ctx.globalAlpha = this.opacity;
-					}
-					if (ctx.fillStyle !== this.color) {
-						ctx.fillStyle = this.color;
-						ctx.fill();
-						ctx.beginPath();
-					}
-					ctx.globalAlpha = 1;
+						ctx.translate(this.x, this.y);
+						ctx.rotate(this.ang);
+						sprite(ctx, this.randomSeed);
+					ctx.restore();
+					this.ang += this.dAng;
 				}
 			}
+			// Sprite image
+			else if (typeof sprite[0] !== 'number') {
+				rad = Math.sqrt(
+					Math.pow((sprite as HTMLImageElement).width, 2) +
+					Math.pow((sprite as HTMLImageElement).height, 2)
+				) / 2;
+				this.draw = ctx => {
+					ctx.save();
+						ctx.globalAlpha = this.opacity;
+						ctx.translate(this.x - rad, this.y - rad);
+						ctx.rotate(this.ang);
+						ctx.drawImage(sprite as HTMLImageElement, 0, 0);
+					ctx.restore();
+					this.ang += this.dAng;
+				}
+			}
+			// [size, color] point
+			else {
+				const
+					size = sprite[0],
+					color = sprite[1];
+				rad = size / 2;
+				this.draw = (ctx) => {
+					ctx.beginPath();
+						ctx.moveTo(this.x, this.y);
+						ctx.arc(this.x, this.y, size, 0, Math.PI * 2);
+					ctx.globalAlpha = this.opacity;
+					ctx.fillStyle = color;
+					ctx.fill();
+				}
+			}
+			this.x += this.velocity.scale(offset).x - rad;
+			this.y += this.velocity.scale(offset).y - rad;
 		};
 
-		public step(gravity?: Physics.Vec) {
+		public step(dt: number, gravity?: Physics.Vec) {
 			if (gravity) {
 				this.velocity = this.velocity.add(gravity);
 			}
 			this.x += this.velocity.x;
 			this.y += this.velocity.y;
-		}
-				
-		public delete(parts, i) {
-			this.opacity -= this.fade;
-			if (this.opacity <= 0) {
-				parts.splice(i, 1);
+
+			if (this.lifespan > 0) {
+				this.lifespan -= dt;
+			} else {
+				if (this.fade === - 1) {
+					this.opacity = 0;
+				} else {
+					this.opacity -= this.fade;
+				}
 			}
 		}
 	}
@@ -1308,7 +1553,7 @@ export module Graphics {
 	//
 	// Private Methods
 	//
-	function tween(keyframeSet : keyframeSet, currentFrame : number): {[param : string] : number} {
+	function tween(keyframeSet: keyframeSet, currentFrame: number): {[param : string] : number} {
 			let params = {};
 			for (let key in keyframeSet) {
 					if (typeof keyframeSet[key] === 'number') {
@@ -1447,7 +1692,7 @@ export module Input {
 	interface MouseButton {
 		down       : boolean;
 		up         : boolean;
-		doubleUp   : boolean;
+		doubleDown : boolean;
 		pressed    : boolean;
 		drag       : boolean;
 		startDrag  : boolean;
@@ -1471,7 +1716,7 @@ export module Input {
 	const CLICKCODE: string[] = ['left', 'middle', 'right'];
 	let
 		dragCheck = {
-			tolerance : 40,
+			tolerance : 10,
 			originX   : 0,
 			originY   : 0,
 			dragPts   : []
@@ -1493,7 +1738,7 @@ export module Input {
 			left: {
 				down       : false,
 				up         : false,
-				doubleUp   : false,
+				doubleDown : false,
 				pressed    : false,
 				drag       : false,
 				startDrag  : false,
@@ -1504,7 +1749,7 @@ export module Input {
 			right: {
 				down       : false,
 				up         : false,
-				doubleUp   : false,
+				doubleDown : false,
 				pressed    : false,
 				drag       : false,
 				startDrag  : false,
@@ -1516,7 +1761,7 @@ export module Input {
 
 		/**
 			Current state of keyboard input
-			Pressed stores names of all keys currently pressed
+			key.pressed stores name of all keys currently pressed
 		*/
 		key: KeyBoard = {
 			up      : null,
@@ -1537,14 +1782,20 @@ export module Input {
 		window.onkeydown = onKeyDown.bind(this);
 		window.onkeyup   = onKeyUp.bind(this);
 
-		toggleContextMenu(false);
+		allowContextMenu(false);
 	};
 
 	export function step(): void {
 		emitClickableObjectEvents();
 
-		resetMouseButton(mouse.left);
-		resetMouseButton(mouse.right);
+		[mouse.left, mouse.right].forEach(b => {
+			b.down       = false;
+			b.up         = false;
+			b.doubleDown = false;
+			b.drag       = false;
+			b.startDrag  = false;
+			b.endDrag    = false;
+		});
 
 		key.down = null;
 		key.up   = null;
@@ -1552,18 +1803,18 @@ export module Input {
 
 	/** Sets number of pixels cursor must move while pressed before drag event is triggered */
 	export function setDragTolerance(tolerance: number): void {
-		dragCheck.tolerance = tolerance;
+		dragCheck.tolerance = tolerance * tolerance;
 	};
 	/** Sets maximum milliseconds between clicks in a double click in order for event to be trigged */
-	export function setDoubleClickWait(v: number): void {
-		dblClickWait = v;
+	export function setDoubleClickTiming(wait: number): void {
+		dblClickWait = wait;
 	};
 
 	/**
 		Enable/Disable browser context menu on right click
 		Disabled by default
 	 */
-	export function toggleContextMenu(show: boolean = true): void {
+	export function allowContextMenu(show: boolean = true): void {
 		if (show) {
 			window.oncontextmenu = function (e) { };
 		} else {
@@ -1589,22 +1840,26 @@ export module Input {
 
 	/**
 		Sets cursor type if CSS cursor name is provided
-		Sets a custom cursor to be rendered if draw function is provided
+		Sets a custom cursor to be rendered if draw function, or image is provided is provided
 	*/
-	export function setCursor(cursor: ((ctx: CanvasRenderingContext2D, delta: number)=>void) | string): void {
+	export function setCursor(cursor: string | HTMLImageElement | ((ctx: CanvasRenderingContext2D, dT: number)=>void)): void {
 		if (typeof cursor === 'string') {
 			(Engine.getCanvasEl() as HTMLElement).style.cursor = cursor;
 		} else {
 			(Engine.getCanvasEl() as HTMLElement).style.cursor = 'none';
-			customCursor = cursor;
+			if (typeof cursor === 'function') {
+				customCursor = cursor;
+			} else {
+				customCursor = ctx => ctx.drawImage(cursor, 0, 0);
+			}
 		}
 	};
 
-	export function drawCursor(ctx: CanvasRenderingContext2D, delta: number): void {
+	export function drawCursor(ctx: CanvasRenderingContext2D, dT: number): void {
 		if (customCursor) {
 			ctx.save();
 				ctx.translate(mouse.x, mouse.y);
-				customCursor(ctx, delta);
+				customCursor(ctx, dT);
 			ctx.restore();
 		}
 	};
@@ -1646,25 +1901,26 @@ export module Input {
 		});
 	};
 
-	/** Calls setMouseListener with width and height of provided sprite */
-	export function setMouseListenerFromSprite(
-		g: GameObject,
-		sprite: Graphics.SpriteSheet,
-		centered: boolean = false
-	): void {
-		setMouseListener(g, sprite.width, sprite.height, false, centered);
-	};
-
 
 	//
 	// Private Methods
 	//
 
 	function onMouseDown(e: MouseEvent): void {
+		let b = mouse[CLICKCODE[e.button]];
+
 		dragCheck.originX = e.clientX;
 		dragCheck.originY = e.clientY;
-		mouse[CLICKCODE[e.button]].pressed = true;
-		mouse[CLICKCODE[e.button]].down    = true;
+		b.pressed = true;
+		b.down    = true;
+
+		if (b.dblCheck) {
+			b.doubleUp = true; 
+			b.dblCheck = false;
+		} else {
+			b.dblCheck = true;
+			setTimeout(() => b.dblCheck = false, dblClickWait);
+		}
 	};
 
 	function onMouseUp(e: MouseEvent): void {
@@ -1677,14 +1933,7 @@ export module Input {
 			b.endDrag  = true;
 			b.dragging = false;
 		}
-
-		if (b.dblCheck) {
-			b.doubleUp = true; 
-			b.dblCheck = false;
-		} else {
-			b.dblCheck = true;
-			setTimeout(() => b.dblCheck = false, dblClickWait);
-		}
+		dragCheck.dragPts = [];
 	};
 
 	function onMouseMove(e: MouseEvent): void {
@@ -1697,40 +1946,29 @@ export module Input {
 
 	function checkDrag(b: MouseButton): void {
 		if (b.pressed) {
-			if (!b.dragging) {
+			if (b.dragging) {
+				b.drag = true;
+				b.dragPts.push({
+					x: mouse.x,
+					y: mouse.y
+				});
+			} else {
 				if (
-					Math.sqrt(
-						Math.pow(mouse.y - dragCheck.originY, 2) +
-						Math.pow(mouse.x - dragCheck.originX, 2)
-					) > dragCheck.tolerance
+					Math.pow(mouse.y - dragCheck.originY, 2) +
+					Math.pow(mouse.x - dragCheck.originX, 2)
+					> dragCheck.tolerance
 				) {
 					b.dragging = true;
-					b.dragPts = [];
-					dragCheck.dragPts.forEach(p => b.dragPts.push({ x: p.x, y: p.y }));
-					dragCheck.dragPts = [];
+					b.drag = true;
+					b.dragPts = dragCheck.dragPts.slice();
 				} else {
 					dragCheck.dragPts.push({
 						x: mouse.x,
 						y: mouse.y
 					});
 				}
-			} else {
-				b.drag = true;
-				b.dragPts.push({
-					x: mouse.x,
-					y: mouse.y
-				});
 			}
 		}
-	};
-
-	function resetMouseButton(b: MouseButton): void {
-		b.down       = false;
-		b.up         = false;
-		b.doubleUp   = false;
-		b.drag       = false;
-		b.startDrag  = false;
-		b.endDrag    = false;
 	};
 
 	function onKeyDown(e: KeyboardEvent): void {
@@ -1745,6 +1983,7 @@ export module Input {
 		key.pressed.splice(key.pressed.indexOf(e.code), 1);
 	};
 
+	// TODO: add view position to object position
 	function emitClickableObjectEvents() {
 		clickableObjects.forEach(o => {
 			if (o.obj.onMouseOver) {
@@ -2108,17 +2347,17 @@ export module Light {
 	/** Light emitting object */
 	export class Source extends Bindable {
 		/** Direction light is pointing; only matters if light arc is set */
-		public active: boolean = true;
 		public ang: number = 0;
 		public mask: HTMLCanvasElement;
 		public lightArea: LightArea;
+		public customMask: (ctx: CanvasRenderingContext2D, radius: number, color: string)=>void;
+		public active: boolean = true;
 		private maskCtx: CanvasRenderingContext2D;
 		private _rad: number;
 		private _color: string;
 		private transColor: string;
 		private _arc: number;
 		private _edgeBlur: number;
-		public customMask: (ctx: CanvasRenderingContext2D, radius: number, color: string)=>void;
 
 		/**
 		  rad is the radius of the light circle cast.
@@ -2781,11 +3020,11 @@ export module Physics {
 		public clone(): Vec {
 			return new Vec(this.x, this.y);
 		}
-    }
+  }
     
-    //
-    // Class: Physics Context
-    //
+  //
+  // Class: Physics Context
+  //
 	export class Context {
     private objs: Particle[] = [];
     public  grav: Vec;
@@ -2926,13 +3165,8 @@ export module World {
 		//
 		// Public Variables
 		//
-		export let area: Area;
-		
-		
-		//
-		// Private Variables
-		//
-		let
+		export let
+			area: Area,
 			areas: { [name: string]: Area } = {},
 			currentAreas: Area[] = [];
 
@@ -2988,7 +3222,7 @@ export module World {
 				onInit is called when a persistent Area is opened for the first time
 			*/
 			constructor(
-				private name			: string,
+				public name				: string,
 				private persist   : boolean = false,
 				zIndex						:	number = 0,
 				public onInit     : ()=>void = ()=>{},
@@ -3058,6 +3292,9 @@ export module World {
 							let ang = o.bound.obj.ang + o.bound.angOffset;
 							o.x = o.bound.obj.x + o.bound.xOffset + (Math.cos(ang) * o.bound.xCenter);
 							o.y = o.bound.obj.y + o.bound.yOffset + (Math.sin(ang) * o.bound.yCenter);
+							if (o.bound.matchAng) {
+								o.ang = ang;
+							}
 						}
 					}
 					o.step(dT);

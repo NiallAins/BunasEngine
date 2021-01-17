@@ -206,7 +206,7 @@ export module Engine {
 				ctx.lineWidth = 10;
 				ctx.beginPath();
 					ctx.arc(
-						625, 295, 140,
+						cW / 2, cH / 2, 140,
 						(-Math.PI / 2),
 						(-Math.PI / 2) + ((Math.PI * 2) * (1 - fractionLoaded)),
 						false

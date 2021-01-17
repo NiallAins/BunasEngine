@@ -1,6 +1,7 @@
 import { Engine } from './Engine';
 import { GameObject } from './Common';
 import { Physics } from './Physics';
+import { Debug } from './Debug';
 
 /** Provides functions and classes for rendering bitmap and vector graphics on the canvas */
 export module Graphics {
@@ -489,26 +490,37 @@ export module Graphics {
 
 	/** Class to create a particle emitter */
 	export class Emitter extends GameObject {
-		private parts       : Particle[] = [];
+		public parts				: Particle[] = [];
 		private currentRate : number = 0;
-		private _grav       : Physics.Vec;
-		private _size       : number[] = [2, 2];
-		private _color      : string = 'dodgerblue';
-		private _lifespan   : number[] = [100, 100];
-		private _fade  			: number[] = [0.2, 0.2];
-		private _ang        : number[] = [0, 0];
-		private _power      : number[] = [1, 1];
-		private _rate       : number[] = [10, 10];
+		private deleted			: boolean = false;
+		
+		// Emitter
+		private _ang   : number[] = [0, 0];
+		private _power : number[] = [1, 0];
+		private _rate  : number[] = [-1, 0];
+		private _grav  : Physics.Vec;
 
-		/** Angle, Power and Rate can be given as a constant or as a range to randomly choose from */
+		// Point particles
+		private _size     : number[] = [2, 0];
+		private _color    : string[] = ['dodgerblue'];
+		private _lifespan : number[] = [100, 0];
+		private _fade  		: number[] = [-1, 0];
+
+		// Sprite particles
+		private _sprite		: HTMLImageElement | ((ctx: CanvasRenderingContext2D) => void);
+		private	_partAng  : number[] = [0, 0];
+		private _partDAng	: number[] = [0, 0];
+
+		/** Angle, Power and Rate can be given as a constant or as a range [lowest, highest] to randomly choose from */
 		constructor(
 			public x: number,
 			public y: number,
+			z: number,
 			ang?   : number | number[],
 			power? : number | number[],
 			rate?  : number | number[],
 		) {
-			super(x, y);
+			super(x, y, z);
 			if (ang) {
 				this._ang = this.configRange(ang);
 			}
@@ -534,6 +546,9 @@ export module Graphics {
 		set power(a: number | number[]) {
 			this._power = this.configRange(a);
 		}
+		/**
+		 * Time between particle emissions, set to -1 to stop emissions
+		 */
 		set rate(a: number | number[]) {
 			this._rate = this.configRange(a);
 		}
@@ -544,16 +559,25 @@ export module Graphics {
 		private configRange(p): number[] {
 			return typeof p === 'number' ? [p, 0] : [p[0], p[1] - p[0]];
 		}
-				
+
+		private getValue(range) {
+			if (typeof range[0] === 'string') {
+				return range[Math.floor(Math.random() * range.length)] as string;
+			} else {
+				return range[0] + (Math.random() * range[1]);
+			}
+		}
+
 		public setParticle(
 			size: number | number[],
-			color?: string,
+			color?: string | string[],
 			lifespan?: number | number[],
 			fade?: number | number[]
 		) {
+			this.sprite = null;
 			this._size = this.configRange(size);
 			if (color) {
-				this._color = color;
+				this._color = typeof color === 'string' ? [color] : color;
 			}
 			if (lifespan) {
 				this._lifespan = this.configRange(lifespan);
@@ -563,110 +587,176 @@ export module Graphics {
 			}
 		}
 
+		public setSpriteParticle(
+			sprite: ((ctx: CanvasRenderingContext2D, rand?: number)=>void) | HTMLImageElement,
+			lifespan?: number | number[],
+			fade?: number | number[],
+			ang?: number | number[],
+			dAng?: number | number[]
+		) {
+			this._sprite = sprite;
+			if (lifespan) {
+				this._lifespan = this.configRange(lifespan);
+			}
+			if (fade) {
+				this._fade = this.configRange(fade);
+			}
+			if (ang) {
+				this._partAng = this.configRange(ang);
+			}
+			if (dAng) {
+				this._partDAng = this.configRange(dAng);
+			}
+		}
+
+		public emit(amount: number, offset: number = 0) {
+			for (let i = 0; i < amount; i++) {
+				this.parts.push(new Particle(
+					this.x,
+					this.y,
+					this.getValue(this._lifespan),
+					new Physics.Vec(
+						this.getValue(this._power),
+						this.ang + this.getValue(this._ang), 
+						true
+					),
+					this.getValue(this._fade),
+					offset,
+					this._sprite || [
+						this.getValue(this._size),
+						this.getValue(this._color)
+					],
+					this._partAng ? this.getValue(this._partAng) : 0,
+					this._partDAng ? this.getValue(this._partDAng) : 0
+				));
+			}
+		}
+
 		public step(dt: number) {
-			this.currentRate += dt;
-			if (this.currentRate > this._rate[0]) {
-				for(let i = this._rate[0]; i < this.currentRate; i += this._rate[0]) {
-					this.parts.push(new Particle(
-						this.x,
-						this.y,
-						this._size[0] + (Math.random() * this._size[1]),
-						this._color,
-						this._lifespan[0] + (Math.random() * this._lifespan[1]),
-						new Physics.Vec(
-							this._power[0] + (Math.random() * this._power[1]),
-							this._ang[0] + (Math.random() * this._ang[1]), 
-							true
-						),
-						this._fade[0] + (Math.random() * this._fade[1]),
-						(this.currentRate - i) / this._rate[0]
-					));
-				}   
-				this.currentRate %= this._rate[0];
-				this.currentRate += Math.random() * this._rate[1];
+			if (this._rate[0] > -1) {
+				this.currentRate += dt;
+				if (this.currentRate > this._rate[0]) {
+					for(let i = this._rate[0]; i < this.currentRate; i += this._rate[0]) {
+						this.emit(1, (this.currentRate - i) / this._rate[0]);
+					}   
+					this.currentRate %= this._rate[0];
+					this.currentRate += Math.random() * this._rate[1];
+				}
 			}
 			this.parts.forEach((p, i) => {
-				p.lifespan -= dt;
-				if (p.lifespan < 0) {
-					p.delete(this.parts, i);
+				p.step(dt, this._grav);
+				if (p.opacity <= 0) {
+					this.parts.splice(i, 1);
 				}
-				p.step(this._grav);
 			});
+
+			if (this.deleted && this.parts.length === 0 ) {
+				super.delete();
+			}
 		}
 
 		public draw(ctx: CanvasRenderingContext2D, dt: number) {
-			ctx.beginPath();
-				this.parts.forEach(p => {
-					p.draw(ctx);
-				});
-			ctx.fill();
+			ctx.save();
+				this.parts.forEach(p => p.draw(ctx));
+			ctx.restore();
+		}
+
+		public delete(force: boolean = false) {
+			if (force) {
+				this.parts = [];
+				super.delete();
+			} else {
+				this.deleted = true;
+			}
 		}
 	}
 
 	class Particle {
-		private opacity: number = 1;
+		public opacity: number = 1;
+		private randomSeed: number;
 		public draw: (ctx: CanvasRenderingContext2D)=>void;
 
 		constructor (
 			private x         : number,
 			private y         : number,
-			private size      : number = 2,
-			private color     : string = 'black',
-			public  lifespan  : number = 1000,
+			public lifespan 	: number,
 			private velocity  : Physics.Vec,
-			private fade			: number = 0.2,
-			offset			      : number = 1
+			private fade			: number,
+			offset			      : number,
+			sprite: 
+				((ctx: CanvasRenderingContext2D, rand: number)=>void) |
+				HTMLImageElement |
+				[number, string],
+			private ang				: number,
+			private dAng			: number
 		) {
 			if (!velocity) {
 				this.velocity = new Physics.Vec(0, 0);
 			}
-			this.x += this.velocity.scale(offset).x - (this.size / 2);
-			this.y += this.velocity.scale(offset).y - (this.size / 2);
-
-			if (this.size <= 2) {
-				this.draw = (ctx) => {
-					ctx.moveTo(this.x, this.y);
-					ctx.rect(this.x, this.y, this.size, this.size);
-					if (this.opacity < 1) {
+			let rad = 0;
+			// Draw function
+			if (typeof sprite === 'function') {
+				this.randomSeed = Math.random();
+				this.draw = ctx => {
+					ctx.save();
 						ctx.globalAlpha = this.opacity;
-					}
-					if (ctx.strokeStyle !== this.color) {
-						ctx.strokeStyle = this.color;
-						ctx.lineWidth = 1;
-						ctx.stroke();
-						ctx.beginPath();
-					}
-					ctx.globalAlpha = 1;
-				}
-			} else {
-				this.draw = (ctx) => {
-					ctx.moveTo(this.x, this.y);
-					ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-					if (this.opacity < 1) {
-						ctx.globalAlpha = this.opacity;
-					}
-					if (ctx.fillStyle !== this.color) {
-						ctx.fillStyle = this.color;
-						ctx.fill();
-						ctx.beginPath();
-					}
-					ctx.globalAlpha = 1;
+						ctx.translate(this.x, this.y);
+						ctx.rotate(this.ang);
+						sprite(ctx, this.randomSeed);
+					ctx.restore();
+					this.ang += this.dAng;
 				}
 			}
+			// Sprite image
+			else if (typeof sprite[0] !== 'number') {
+				rad = Math.sqrt(
+					Math.pow((sprite as HTMLImageElement).width, 2) +
+					Math.pow((sprite as HTMLImageElement).height, 2)
+				) / 2;
+				this.draw = ctx => {
+					ctx.save();
+						ctx.globalAlpha = this.opacity;
+						ctx.translate(this.x - rad, this.y - rad);
+						ctx.rotate(this.ang);
+						ctx.drawImage(sprite as HTMLImageElement, 0, 0);
+					ctx.restore();
+					this.ang += this.dAng;
+				}
+			}
+			// [size, color] point
+			else {
+				const
+					size = sprite[0],
+					color = sprite[1];
+				rad = size / 2;
+				this.draw = (ctx) => {
+					ctx.beginPath();
+						ctx.moveTo(this.x, this.y);
+						ctx.arc(this.x, this.y, size, 0, Math.PI * 2);
+					ctx.globalAlpha = this.opacity;
+					ctx.fillStyle = color;
+					ctx.fill();
+				}
+			}
+			this.x += this.velocity.scale(offset).x - rad;
+			this.y += this.velocity.scale(offset).y - rad;
 		};
 
-		public step(gravity?: Physics.Vec) {
+		public step(dt: number, gravity?: Physics.Vec) {
 			if (gravity) {
 				this.velocity = this.velocity.add(gravity);
 			}
 			this.x += this.velocity.x;
 			this.y += this.velocity.y;
-		}
-				
-		public delete(parts, i) {
-			this.opacity -= this.fade;
-			if (this.opacity <= 0) {
-				parts.splice(i, 1);
+
+			if (this.lifespan > 0) {
+				this.lifespan -= dt;
+			} else {
+				if (this.fade === - 1) {
+					this.opacity = 0;
+				} else {
+					this.opacity -= this.fade;
+				}
 			}
 		}
 	}
@@ -674,7 +764,7 @@ export module Graphics {
 	//
 	// Private Methods
 	//
-	function tween(keyframeSet : keyframeSet, currentFrame : number): {[param : string] : number} {
+	function tween(keyframeSet: keyframeSet, currentFrame: number): {[param : string] : number} {
 			let params = {};
 			for (let key in keyframeSet) {
 					if (typeof keyframeSet[key] === 'number') {

@@ -25,13 +25,8 @@ export module World {
 		//
 		// Public Variables
 		//
-		export let area: Area;
-		
-		
-		//
-		// Private Variables
-		//
-		let
+		export let
+			area: Area,
 			areas: { [name: string]: Area } = {},
 			currentAreas: Area[] = [];
 
@@ -87,7 +82,7 @@ export module World {
 				onInit is called when a persistent Area is opened for the first time
 			*/
 			constructor(
-				private name			: string,
+				public name				: string,
 				private persist   : boolean = false,
 				zIndex						:	number = 0,
 				public onInit     : ()=>void = ()=>{},
@@ -157,6 +152,9 @@ export module World {
 							let ang = o.bound.obj.ang + o.bound.angOffset;
 							o.x = o.bound.obj.x + o.bound.xOffset + (Math.cos(ang) * o.bound.xCenter);
 							o.y = o.bound.obj.y + o.bound.yOffset + (Math.sin(ang) * o.bound.yCenter);
+							if (o.bound.matchAng) {
+								o.ang = ang;
+							}
 						}
 					}
 					o.step(dT);

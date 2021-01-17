@@ -97,11 +97,11 @@ export module Physics {
 		public clone(): Vec {
 			return new Vec(this.x, this.y);
 		}
-    }
+  }
     
-    //
-    // Class: Physics Context
-    //
+  //
+  // Class: Physics Context
+  //
 	export class Context {
     private objs: Particle[] = [];
     public  grav: Vec;

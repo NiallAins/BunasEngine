@@ -6,7 +6,7 @@
 		"f": {
 			"bindPosition": {
 				"desc": " Match a GameObjects position and angle to this GameObjects position and angle ",
-				"snip": "public bindPosition(\n    obj: GameObject,\n    xOffset: number = 0,\n    yOffset: number = 0,\n    angOffset?: number,\n    xCenter: number = 0,\n    yCenter: number = 0\n) "
+				"snip": "public bindPosition(\n    obj: GameObject,\n    xOffset: number = 0,\n    yOffset: number = 0,\n    angOffset?: number,\n    xCenter: number = 0,\n    yCenter: number = 0,\n    matchAng: boolean = false\n) "
 			},
 			"unbindPosition": {
 				"desc": " ",
@@ -28,6 +28,10 @@
 						"desc": " Called on each Engine step event ",
 						"snip": "public step      (delta: number): void "
 					},
+					"checkCollision": {
+						"desc": "\t\tReturns true if point [x, y] (or rectangle [x, y, w, h] if provided) is within objects colBox\r\n\t\tx can be given as a GameObject, to use that objects colBox as the rectangle to check\r\n\t",
+						"snip": "public checkCollision(x: number | GameObject, y?: number, w: number = 0, h: number = 0): boolean "
+					},
 					"setShadowMask": {
 						"desc": " Set a polygon mask to be used when casting shadows from a light source ",
 						"snip": "public setShadowMask(poly: {x: number, y: number}[] | Graphics.Sprite) "
@@ -42,13 +46,17 @@
 						"desc": " Is the object currently on screen (set before step events are called) ",
 						"snip": "public inView: boolean = true"
 					},
+					"get": {
+						"desc": " Returns false if object is not being rendered in an area ",
+						"snip": "let get alive(): boolean {\n    return !!this.area;\n}"
+					},
 					"startStep": {
 						"desc": " Called at start of each Engine step event ",
 						"snip": "public startStep?(delta: number): void;\n/** Called at end of each Engine step event */\npublic endStep?  (delta: number): void;\n/** Called on each Engine draw event */\npublic draw      (ctx: CanvasRenderingContext2D, delta: number): void {}"
 					},
 					"startDraw": {
 						"desc": " Called at start of each Engine draw event ",
-						"snip": "public startDraw?(ctx: CanvasRenderingContext2D, delta: number): void;\n/** Called at end of each Engine draw event */\npublic endDraw?  (ctx: CanvasRenderingContext2D, delta: number): void;\n/** Called on object mouseover if Input.setMouseListener() has been set */\npublic onMouseOver?(m: Input.Mouse): void;\n/**\nReturns instances in objects with overlapping clip boxes\nWhen onlyInView is true, search is limited to only objects within current view\n*/\npublic getCollisions(objects: GameObject[], onlyInView: boolean = false): GameObject[] {\n    return objects.filter(o => (\n            (!onlyInView || o.inView) &&\n            o.x + o.colBox.x < this.x + this.colBox.x + this.colBox.width &&\n            o.x + o.colBox.x + o.colBox.width > this.x + this.colBox.x &&\n            o.y + o.colBox.y < this.y + this.colBox.y + this.colBox.height &&\n            o.y + o.colBox.y + o.colBox.height > this.y + this.colBox.y\n        ));\n}"
+						"snip": "public startDraw?(ctx: CanvasRenderingContext2D, delta: number): void;\n/** Called at end of each Engine draw event */\npublic endDraw?  (ctx: CanvasRenderingContext2D, delta: number): void;\n/** Called on object mouseover if Input.setMouseListener() has been set */\npublic onMouseOver?(m: Input.Mouse): void;\n/**\nReturns instances of other GameObjects with overlapping clip boxes\nIf objects is not provided, all GameObjects in area are checked\nWhen checkOutsideView is false, search is limited to only objects within current view\n*/\npublic getCollisions(\n    objects: GameObject[] = this.area.objs,\n    checkOutsideView: boolean = false\n): GameObject[] {\n    return objects.filter(o => (\n            (checkOutsideView || o.inView) &&\n            o.x + o.colBox.x < this.x + this.colBox.x + this.colBox.width &&\n            o.x + o.colBox.x + o.colBox.width > this.x + this.colBox.x &&\n            o.y + o.colBox.y < this.y + this.colBox.y + this.colBox.height &&\n            o.y + o.colBox.y + o.colBox.height > this.y + this.colBox.y\n        ));\n}"
 					},
 					"x": {
 						"desc": "",
@@ -72,13 +80,9 @@
 				"desc": " Debugger output font size ",
 				"snip": "let fontSize        : number = 14"
 			},
-			"color": {
-				"desc": " Degugger output font color ",
-				"snip": "let color           : string = 'dodgerblue'"
-			},
-			"defaultOptions": {
+			"options": {
 				"desc": " Toggle default proporties displayed in debugger ",
-				"snip": "let defaultOptions  : {[option: string] : boolean}"
+				"snip": "let options  : {[option: string] : boolean}"
 			}
 		},
 		"f": {
@@ -93,6 +97,22 @@
 			"clear": {
 				"desc": " Clear debugger output ",
 				"snip": "function clear(): void "
+			},
+			"drawClipBox": {
+				"desc": " Draw given objects clip boxes on next draw  ",
+				"snip": "function drawClipBox(...objs: GameObject[]) "
+			},
+			"drawColBox": {
+				"desc": " Draw given objects collision boxes on next draw  ",
+				"snip": "function drawColBox(...objs: GameObject[]) "
+			},
+			"drawPosition": {
+				"desc": " Draw given objects collision boxes on next draw  ",
+				"snip": "function drawPosition(...objs: GameObject[]) "
+			},
+			"setColor": {
+				"desc": " Sets colors of debug text ",
+				"snip": "function setColor(primaryColor: string, secondaryColor?: string) "
 			}
 		}
 	},
@@ -327,11 +347,15 @@
 				},
 				"m": {
 					"Class Constructor": {
-						"desc": " Angle, Power and Rate can be given as a constant or as a range to randomly choose from ",
-						"snip": "constructor(\n    public x: number,\n    public y: number,\n    ang?   : number | number[],\n    power? : number | number[],\n    rate?  : number | number[],\n) "
+						"desc": " Angle, Power and Rate can be given as a constant or as a range [lowest, highest] to randomly choose from ",
+						"snip": "constructor(\n    public x: number,\n    public y: number,\n    z: number,\n    ang?   : number | number[],\n    power? : number | number[],\n    rate?  : number | number[],\n) "
 					}
 				},
 				"v": {
+					"set": {
+						"desc": "\t\t * Time between particle emissions, set to -1 to stop emissions\r\n\t\t ",
+						"snip": "let set rate(a: number | number[]) {\n    this._rate = this.configRange(a);\n}"
+					},
 					"x": {
 						"desc": "",
 						"snip": "public x: number"
@@ -356,7 +380,7 @@
 			},
 			"MouseButton": {
 				"desc": " Private: Describes single mouse button state ",
-				"snip": "interface MouseButton {\n    down       : boolean;\n    up         : boolean;\n    doubleUp   : boolean;\n    pressed    : boolean;\n    drag       : boolean;\n    startDrag  : boolean;\n    endDrag    : boolean;\n    dragging   : boolean;\n    dragPts    : {x: number, y: number}[];\n}"
+				"snip": "interface MouseButton {\n    down       : boolean;\n    up         : boolean;\n    doubleDown : boolean;\n    pressed    : boolean;\n    drag       : boolean;\n    startDrag  : boolean;\n    endDrag    : boolean;\n    dragging   : boolean;\n    dragPts    : {x: number, y: number}[];\n}"
 			},
 			"Mouse": {
 				"desc": " Describes current state of mouse input ",
@@ -366,10 +390,10 @@
 		"v": {
 			"mouse": {
 				"desc": " Current state of mouse input ",
-				"snip": "let mouse: Mouse = {\n    x:    0,\n    y:    0,\n    left: {\n        down       : false,\n        up         : false,\n        doubleUp   : false,\n        pressed    : false,\n        drag       : false,\n        startDrag  : false,\n        endDrag    : false,\n        dragging   : false,\n        dragPts    : []\n    },\n    right: {\n        down       : false,\n        up         : false,\n        doubleUp   : false,\n        pressed    : false,\n        drag       : false,\n        startDrag  : false,\n        endDrag    : false,\n        dragging   : false,\n        dragPts    : []\n    }\n}"
+				"snip": "let mouse: Mouse = {\n    x:    0,\n    y:    0,\n    left: {\n        down       : false,\n        up         : false,\n        doubleDown : false,\n        pressed    : false,\n        drag       : false,\n        startDrag  : false,\n        endDrag    : false,\n        dragging   : false,\n        dragPts    : []\n    },\n    right: {\n        down       : false,\n        up         : false,\n        doubleDown : false,\n        pressed    : false,\n        drag       : false,\n        startDrag  : false,\n        endDrag    : false,\n        dragging   : false,\n        dragPts    : []\n    }\n}"
 			},
 			"key": {
-				"desc": "\t\t\tCurrent state of keyboard input\r\n\t\t\tPressed stores names of all keys currently pressed\r\n\t\t",
+				"desc": "\t\t\tCurrent state of keyboard input\r\n\t\t\tkey.pressed stores name of all keys currently pressed\r\n\t\t",
 				"snip": "let key: KeyBoard = {\n    up      : null,\n    down    : null,\n    pressed : []\n}"
 			}
 		},
@@ -378,13 +402,13 @@
 				"desc": " Sets number of pixels cursor must move while pressed before drag event is triggered ",
 				"snip": "function setDragTolerance(tolerance: number): void "
 			},
-			"setDoubleClickWait": {
+			"setDoubleClickTiming": {
 				"desc": " Sets maximum milliseconds between clicks in a double click in order for event to be trigged ",
-				"snip": "function setDoubleClickWait(v: number): void "
+				"snip": "function setDoubleClickTiming(wait: number): void "
 			},
-			"toggleContextMenu": {
+			"allowContextMenu": {
 				"desc": "\t\tEnable/Disable browser context menu on right click\r\n\t\tDisabled by default\r\n\t ",
-				"snip": "function toggleContextMenu(show: boolean = true): void "
+				"snip": "function allowContextMenu(show: boolean = true): void "
 			},
 			"isPressed": {
 				"desc": " Returns true is any of the key names provided are currently pressed  ",
@@ -395,16 +419,12 @@
 				"snip": "function mouseInArea(a?: World.Area): "
 			},
 			"setCursor": {
-				"desc": "\t\tSets cursor type if CSS cursor name is provided\r\n\t\tSets a custom cursor to be rendered if draw function is provided\r\n\t",
-				"snip": "function setCursor(cursor: ((ctx: CanvasRenderingContext2D, delta: number)=>void) | string): void "
+				"desc": "\t\tSets cursor type if CSS cursor name is provided\r\n\t\tSets a custom cursor to be rendered if draw function, or image is provided is provided\r\n\t",
+				"snip": "function setCursor(cursor: string | HTMLImageElement | ((ctx: CanvasRenderingContext2D, dT: number)=>void)): void "
 			},
 			"setMouseListener": {
 				"desc": "\t\tRegisters game object with relative hit box in which to listener for mouseover events\r\n\t\tIf circular, hit box will be a circle\r\n\t\tIf centered, box will be centered on object.x, object.y; otherwise, will be aligned with top left\r\n\t",
 				"snip": "function setMouseListener(\n    g: GameObject,\n    width: number,\n    height: number,\n    circular: boolean = false,\n    centered: boolean = false\n): void "
-			},
-			"setMouseListenerFromSprite": {
-				"desc": " Calls setMouseListener with width and height of provided sprite ",
-				"snip": "function setMouseListenerFromSprite(\n    g: GameObject,\n    sprite: Graphics.SpriteSheet,\n    centered: boolean = false\n): void "
 			}
 		}
 	},
@@ -456,9 +476,9 @@
 					}
 				},
 				"v": {
-					"active": {
+					"ang": {
 						"desc": " Direction light is pointing; only matters if light arc is set ",
-						"snip": "public active: boolean = true"
+						"snip": "public ang: number = 0"
 					},
 					"x": {
 						"desc": "",
@@ -520,7 +540,7 @@
 				"m": {
 					"Class Constructor": {
 						"desc": "\t\t\t\tIf persist is true, objects in area will persists after close(), until open() is called again.\r\n\t\t\t\tIf persist is false, all object will be deleted on close, and recreated again on open()\r\n\t\t\t\tzIndex sets the order in which this Area is drawn if multiple areas are open at once\r\n\t\t\t\tonInit, onOpen, onClose are custom functions to call \r\n\t\t\t\tonInit is called when a persistent Area is opened for the first time\r\n\t\t\t",
-						"snip": "constructor(\n    private name\t\t\t: string,\n    private persist   : boolean = false,\n    zIndex\t\t\t\t\t\t:\tnumber = 0,\n    public onInit     : ()=>void = ()=>{},\n    public onOpen     : ()=>void = ()=>{},\n    public onClose    : ()=>void = ()=>{},\n) "
+						"snip": "constructor(\n    public name\t\t\t\t: string,\n    private persist   : boolean = false,\n    zIndex\t\t\t\t\t\t:\tnumber = 0,\n    public onInit     : ()=>void = ()=>{},\n    public onOpen     : ()=>void = ()=>{},\n    public onClose    : ()=>void = ()=>{},\n) "
 					},
 					"addBackground": {
 						"desc": "\t\t\t\tSets the background of area\r\n\t\t\t\tAsset can be the name of background asset, or the string value of a color\r\n\t\t\t",
@@ -559,6 +579,10 @@
 					"light": {
 						"desc": " Light.LightArea assigned to this area if using lighting ",
 						"snip": "public light: Light.LightArea"
+					},
+					"name": {
+						"desc": "",
+						"snip": "public name\t\t\t\t: string"
 					},
 					"onInit": {
 						"desc": "",

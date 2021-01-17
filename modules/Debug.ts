@@ -1,6 +1,7 @@
 import { Engine } from './Engine';
 import { World } from './World';
 import { Input } from './Input';
+import { GameObject } from './Common';
 
 /** Provides helper functions to debug application */
 export module Debug {
@@ -12,8 +13,12 @@ export module Debug {
 		dTCounter	:	number = +new Date(),
 		logs      : string[] = [],
 		permLog   : string[] = [],
+		clipBoxes	: GameObject[] = [],
+		colBoxes	: GameObject[] = [],
+		positions : GameObject[] = [],
 		container : HTMLDivElement = document.createElement('div'),
-		output    : HTMLPreElement = document.createElement('pre');
+		output    : HTMLPreElement = document.createElement('pre'),
+		color			: string[] = ['dodgerblue', 'tomato'];
 	
 	container.setAttribute('style', `
 		position: fixed;
@@ -22,8 +27,9 @@ export module Debug {
 		top: 0px;
 		left: 20px;
 		width: 60vw;
-		pointer-events: none;
+		color: ${color[0]};
 		text-shadow: 0 0 2px #000;
+		pointer-events: none;
 	`);
 	container.appendChild(output);
 
@@ -33,13 +39,15 @@ export module Debug {
 	export let
 		/** Debugger output font size */
 		fontSize        : number = 14,
-		/** Degugger output font color */
-		color           : string = 'dodgerblue',
 		/** Toggle default proporties displayed in debugger */
-		defaultOptions  : {[option: string] : boolean} = {
+		options  : {[option: string] : boolean} = {
 			dt: true,
 			view: true,
-			input : true
+			input : true,
+			area: true,
+			colBox: false,
+			clipBox: false,
+			positions: false
 		};
 
 	//
@@ -68,7 +76,127 @@ export module Debug {
 		permLog = [];
 	};
 
+	/** Draw given objects clip boxes on next draw  */
+	export function drawClipBox(...objs: GameObject[]) {
+		clipBoxes = [...this.clipBoxes, objs];
+	}
+
+	/** Draw given objects collision boxes on next draw  */
+	export function drawColBox(...objs: GameObject[]) {
+		colBoxes = [...this.colBoxes, objs];
+	}
+
+	/** Draw given objects collision boxes on next draw  */
+	export function drawPosition(...objs: GameObject[]) {
+		positions = [...this.positions, objs];
+	}
+
+	/** Sets colors of debug text */
+	export function setColor(primaryColor: string, secondaryColor?: string) {
+		color[0] = primaryColor;
+		if (secondaryColor) {
+			color[1] = secondaryColor;
+		}
+		this.container.style.color = color[0];
+	}
+
 	export function draw(ctx: CanvasRenderingContext2D, dT: number): void {
+		ctx.fillStyle = color[0];
+		ctx.strokeStyle = color[0];
+		ctx.lineWidth = 1;
+
+		// Collision boxes
+		ctx.save();
+			ctx.strokeStyle = color[options.clipBox || clipBoxes.length ? 1 : 0];
+			if (options.colBox) {
+				World.currentAreas.forEach(a => {
+					ctx.save();
+						ctx.translate(-a.view.x, -a.view.y);
+						a.objs.forEach(o => {
+							if (o.inView) {
+								ctx.strokeRect(
+									o.x + o.colBox.x,
+									o.y + o.colBox.y,
+									o.colBox.width,
+									o.colBox.height
+								);
+							}
+						});
+					ctx.restore();
+				});
+			} else if (colBoxes.length) {
+				colBoxes.forEach(o => {
+					if (o.inView) {
+						ctx.save();
+							ctx.translate(-o.area.view.x, -o.area.view.y);
+							ctx.strokeRect(
+								o.x + o.colBox.x,
+								o.y + o.colBox.y,
+								o.colBox.width,
+								o.colBox.height
+							);
+						ctx.restore();
+					}
+				});
+			}
+		ctx.restore();
+
+		// Clip boxes
+		if (options.clipBox) {
+			World.currentAreas.forEach(a => {
+				ctx.save();
+					ctx.translate(-a.view.x, -a.view.y);
+					a.objs.forEach(o => {
+						if (o.inView) {
+							ctx.strokeRect(
+								o.x + o.clipBox.x,
+								o.y + o.clipBox.y,
+								o.clipBox.width,
+								o.clipBox.height
+							);
+						}
+					});
+				ctx.restore();
+			});
+		} else if (clipBoxes.length) {
+			clipBoxes.forEach(o => {
+				if (o.inView) {
+					ctx.save();
+						ctx.translate(-o.area.view.x, -o.area.view.y);
+						ctx.strokeRect(
+							o.x + o.clipBox.x,
+							o.y + o.clipBox.y,
+							o.clipBox.width,
+							o.clipBox.height
+						);
+					ctx.restore();
+				}
+			});
+		}
+
+		// Positions
+		if (options.positions) {
+			World.currentAreas.forEach(a => {
+				ctx.save();
+					ctx.translate(-a.view.x, -a.view.y);
+					a.objs.forEach(o => {
+						if (o.inView) {
+							ctx.fillRect(o.x - 2, o.y - 2, 4, 4);
+						}
+					});
+				ctx.restore();
+			});
+		} else if (positions.length) {
+			positions.forEach(o => {
+				if (o.inView) {
+					ctx.save();
+						ctx.translate(-o.area.view.x, -o.area.view.y);
+						ctx.fillRect(o.x - 2, o.y - 2, 4, 4);
+					ctx.restore();
+				}
+			});
+		}
+
 		if (+new Date() - dTCounter < 250) {
 			logs = [];
 			return;
@@ -84,18 +212,22 @@ export module Debug {
 		`);
 
 		output.innerHTML = '';
-		if (defaultOptions.dt) {
+		if (options.dt) {
 			output.innerHTML +=
 				`dT    : ${dT.toFixed(3)}<br/>`;
 		}
-		if (defaultOptions.view) {
+		if (options.area) {
 			output.innerHTML +=
-				`View  :<br/>` +
+				`Area  : ${World.currentAreas.map(a => a.name).join(',')}<br/>`;
+		}
+		if (options.view) {
+			output.innerHTML +=
+				`View  : <br/>` +
 				`    x: ${World.area.view.x.toFixed(2)},<br/>` +
 				`    y: ${World.area.view.y.toFixed(2)},<br/>` +
 				`    z: ${World.area.view.z.toFixed(2)}<br/>`;
 		}
-		if (defaultOptions.input) {
+		if (options.input) {
 			output.innerHTML +=
 				`Input : ${getInputData()}<br/><br/>`;
 		}
@@ -103,6 +235,8 @@ export module Debug {
 
 		output.scrollTop = output.scrollHeight;
 		logs = [];
+		clipBoxes = [];
+		colBoxes = [];
 	};
 
 	//
@@ -114,19 +248,10 @@ export module Debug {
 		str.push(`    mouseState =`);
 		str.push(`        x: ${Input.mouse.x}`);
 		str.push(`        y: ${Input.mouse.y}`);
-		if (Input.mouse.left.pressed)  str.push(`    left.pressed`);
-		if (Input.mouse.left.dragging) str.push(`    left.dragging ${Input.mouse.left.drag ? ' left.drag' : ''}`);
-		if (Input.mouse.left.dragPts.length) {
-			str.push(`        left.dragPts: [<br/>${Input.mouse.left.dragPts.reduce((str, p) =>
-				str = (str.length > 200 ? '...' + str.substr(-200) : str) + '(' + p.x + ', ' + p.y + ')', '')}]`);
-		}
-		if (Input.mouse.right.pressed)  str.push(`    right.pressed`);
-		if (Input.mouse.right.dragging) str.push(`    right.dragging ${Input.mouse.right.drag ? 'right.drag' : ''}`);
-		if (Input.mouse.right.dragPts.length) {
-			str.push(`        right.dragPts: [<br/>${Input.mouse.right.dragPts.reduce((str, p) =>
-				str = (str.length > 200 ? '...' + str.substr(-200) : str) + '(' + p.x + ', ' + p.y + ')', '')}]`);
-		}
+		if (Input.mouse.left.pressed)  str.push(`        left.pressed`);
+		if (Input.mouse.left.dragging) str.push(`        left.dragging ${Input.mouse.left.drag ? ' left.drag' : ''}`);
+		if (Input.mouse.right.pressed)  str.push(`        right.pressed`);
+		if (Input.mouse.right.dragging) str.push(`        right.dragging ${Input.mouse.right.drag ? 'right.drag' : ''}`);
 		return str.join('<br/>');
 	};
-	
 }

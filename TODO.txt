@@ -113,3 +113,22 @@ ToDo:
           -> Very fast
           -> Hit will stun
           -> Electric glow
+
+MVP progression
+- Shop
+- Sell
+- Attacking fish  
+
+Abilties
+- torch life
+- oxegen supply
+- speed
+- camera?
+ - shutter speed (reduce notion blur)
+ - hammer power
+
+Upgrade (3 for each)
+- Hammer power (aluminium, steel, titanium)
+- fins (fins, long fins, jet power)
+- tank size (large, double, double large)
+- torch batteries (long life, litium ion, hydrogen fuel cell)
