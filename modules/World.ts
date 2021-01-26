@@ -142,8 +142,9 @@ export module World {
 			}
 
 			public step(dT: number) {
-				this.objs.forEach(o => o.startStep && o.startStep(dT));
-				this.objs.forEach(o => {
+				const activeObjs = this.objs.filter(o => !o.pause && (!o.pauseOffScreen || o.inView));
+				activeObjs.forEach(o => o.startStep && o.startStep(dT));
+				activeObjs.forEach(o => {
 					if (o.bound) {
 						if (typeof o.bound.angOffset === 'undefined') {
 							o.x = o.bound.obj.x + o.bound.xOffset;
@@ -159,7 +160,7 @@ export module World {
 					}
 					o.step(dT);
 				});
-				this.objs.forEach(o => o.endStep && o.endStep(dT));
+				activeObjs.forEach(o => o.endStep && o.endStep(dT));
 			}
 
 			public draw(ctx: CanvasRenderingContext2D, dT: number) {

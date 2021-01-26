@@ -13,6 +13,7 @@ export module Debug {
 		dTCounter	:	number = +new Date(),
 		logs      : string[] = [],
 		permLog   : string[] = [],
+		objLog    : GameObject[] = [],
 		clipBoxes	: GameObject[] = [],
 		colBoxes	: GameObject[] = [],
 		positions : GameObject[] = [],
@@ -20,17 +21,19 @@ export module Debug {
 		output    : HTMLPreElement = document.createElement('pre'),
 		color			: string[] = ['dodgerblue', 'tomato'];
 	
-	container.setAttribute('style', `
-		position: fixed;
-		height: 100vh;
-		padding-top: 20px; 
-		top: 0px;
-		left: 20px;
-		width: 60vw;
-		color: ${color[0]};
-		text-shadow: 0 0 2px #000;
-		pointer-events: none;
-	`);
+	container.setAttribute(
+		'style', `
+			position: fixed;
+			height: 100vh;
+			padding-top: 20px; 
+			top: 0px;
+			left: 20px;
+			width: 60vw;
+			color: ${color[0]};
+			text-shadow: 0 0 2px #000;
+			pointer-events: none;
+		`
+	);
 	container.appendChild(output);
 
 	//
@@ -40,7 +43,15 @@ export module Debug {
 		/** Debugger output font size */
 		fontSize        : number = 14,
 		/** Toggle default proporties displayed in debugger */
-		options  : {[option: string] : boolean} = {
+		options: {
+			dt: boolean;
+			view: boolean;
+			input : boolean;
+			area: boolean;
+			colBox: boolean;
+			clipBox: boolean;
+			positions: boolean;
+		} = {
 			dt: true,
 			view: true,
 			input : true,
@@ -67,9 +78,22 @@ export module Debug {
 		If logging a variable on every step, set persist = false to continually clear previous output.
 	*/
 	export function log(data: any, persist = false): void {
-		let entry = JSON.stringify(data, null, '\t');
+		const entry = JSON.stringify(data, null, '\t');
 		persist ? permLog.push(entry) : logs.push(entry);
 	};
+
+	/**
+		Logs details of a specfiic GameObject
+		If outline is true, objs colBox and clipBox are drawn
+	 */
+	export function logObject(g: GameObject, outline: boolean = false) {
+		objLog.push(g);
+		if (outline) {
+			drawColBox(g);
+			drawClipBox(g);
+			drawPosition(g);
+		}
+	}
 
 	/** Clear debugger output */
 	export function clear(): void {
@@ -78,17 +102,17 @@ export module Debug {
 
 	/** Draw given objects clip boxes on next draw  */
 	export function drawClipBox(...objs: GameObject[]) {
-		clipBoxes = [...this.clipBoxes, objs];
+		clipBoxes = clipBoxes.concat(objs);
 	}
 
 	/** Draw given objects collision boxes on next draw  */
 	export function drawColBox(...objs: GameObject[]) {
-		colBoxes = [...this.colBoxes, objs];
+		colBoxes = colBoxes.concat(objs);
 	}
 
 	/** Draw given objects collision boxes on next draw  */
 	export function drawPosition(...objs: GameObject[]) {
-		positions = [...this.positions, objs];
+		positions = positions.concat(objs);
 	}
 
 	/** Sets colors of debug text */
@@ -101,45 +125,9 @@ export module Debug {
 	}
 
 	export function draw(ctx: CanvasRenderingContext2D, dT: number): void {
-		ctx.fillStyle = color[0];
-		ctx.strokeStyle = color[0];
+		ctx.fillStyle = color[1];
+		ctx.strokeStyle = color[1];
 		ctx.lineWidth = 1;
-
-		// Collision boxes
-		ctx.save();
-			ctx.strokeStyle = color[options.clipBox || clipBoxes.length ? 1 : 0];
-			if (options.colBox) {
-				World.currentAreas.forEach(a => {
-					ctx.save();
-						ctx.translate(-a.view.x, -a.view.y);
-						a.objs.forEach(o => {
-							if (o.inView) {
-								ctx.strokeRect(
-									o.x + o.colBox.x,
-									o.y + o.colBox.y,
-									o.colBox.width,
-									o.colBox.height
-								);
-							}
-						});
-					ctx.restore();
-				});
-			} else if (colBoxes.length) {
-				colBoxes.forEach(o => {
-					if (o.inView) {
-						ctx.save();
-							ctx.translate(-o.area.view.x, -o.area.view.y);
-							ctx.strokeRect(
-								o.x + o.colBox.x,
-								o.y + o.colBox.y,
-								o.colBox.width,
-								o.colBox.height
-							);
-						ctx.restore();
-					}
-				});
-			}
-		ctx.restore();
 
 		// Clip boxes
 		if (options.clipBox) {
@@ -181,7 +169,7 @@ export module Debug {
 					ctx.translate(-a.view.x, -a.view.y);
 					a.objs.forEach(o => {
 						if (o.inView) {
-							ctx.fillRect(o.x - 2, o.y - 2, 4, 4);
+							ctx.fillRect(o.x - 3, o.y - 3, 6, 6);
 						}
 					});
 				ctx.restore();
@@ -191,7 +179,42 @@ export module Debug {
 				if (o.inView) {
 					ctx.save();
 						ctx.translate(-o.area.view.x, -o.area.view.y);
-						ctx.fillRect(o.x - 2, o.y - 2, 4, 4);
+						ctx.fillRect(o.x - 3, o.y - 3, 6, 6);
+					ctx.restore();
+				}
+			});
+		}
+		
+		// Collision boxes
+		ctx.strokeStyle = color[0];
+		ctx.fillStyle = color[0];
+		if (options.colBox) {
+			World.currentAreas.forEach(a => {
+				ctx.save();
+					ctx.translate(-a.view.x, -a.view.y);
+					a.objs.forEach(o => {
+						if (o.inView) {
+							ctx.strokeRect(
+								o.x + o.colBox.x,
+								o.y + o.colBox.y,
+								o.colBox.width,
+								o.colBox.height
+							);
+						}
+					});
+				ctx.restore();
+			});
+		} else if (colBoxes.length) {
+			colBoxes.forEach(o => {
+				if (o.inView) {
+					ctx.save();
+						ctx.translate(-o.area.view.x, -o.area.view.y);
+						ctx.strokeRect(
+							o.x + o.colBox.x,
+							o.y + o.colBox.y,
+							o.colBox.width,
+							o.colBox.height
+						);
 					ctx.restore();
 				}
 			});
@@ -214,29 +237,28 @@ export module Debug {
 		output.innerHTML = '';
 		if (options.dt) {
 			output.innerHTML +=
-				`dT    : ${dT.toFixed(3)}<br/>`;
+				`dT ${dT.toFixed(3)}<br/>`;
 		}
 		if (options.area) {
 			output.innerHTML +=
-				`Area  : ${World.currentAreas.map(a => a.name).join(',')}<br/>`;
+				`Area <br/>  ${World.currentAreas.map(a => a.name).join(',')}<br/>`;
 		}
 		if (options.view) {
 			output.innerHTML +=
-				`View  : <br/>` +
-				`    x: ${World.area.view.x.toFixed(2)},<br/>` +
-				`    y: ${World.area.view.y.toFixed(2)},<br/>` +
-				`    z: ${World.area.view.z.toFixed(2)}<br/>`;
+				`View <br/>` +
+				`  x ${World.area.view.x.toFixed(2)},<br/>` +
+				`  y ${World.area.view.y.toFixed(2)},<br/>` +
+				`  z ${World.area.view.z.toFixed(2)}<br/>`;
 		}
 		if (options.input) {
 			output.innerHTML +=
-				`Input : ${getInputData()}<br/><br/>`;
+				`Input: ${getInputData()}<br/><br/>`;
 		}
+		output.innerHTML += objLog.reduce((str, o) => getObjectData(o), '');
 		output.innerHTML += permLog.concat(logs).join('<br/>');
 
 		output.scrollTop = output.scrollHeight;
 		logs = [];
-		clipBoxes = [];
-		colBoxes = [];
 	};
 
 	//
@@ -244,14 +266,24 @@ export module Debug {
 	//
 	function getInputData(): string {
 		var str = [];
-		str.push(`<br/>    keyPressed = [${Input.key.pressed.join(', ')}]`);
-		str.push(`    mouseState =`);
-		str.push(`        x: ${Input.mouse.x}`);
-		str.push(`        y: ${Input.mouse.y}`);
-		if (Input.mouse.left.pressed)  str.push(`        left.pressed`);
-		if (Input.mouse.left.dragging) str.push(`        left.dragging ${Input.mouse.left.drag ? ' left.drag' : ''}`);
-		if (Input.mouse.right.pressed)  str.push(`        right.pressed`);
-		if (Input.mouse.right.dragging) str.push(`        right.dragging ${Input.mouse.right.drag ? 'right.drag' : ''}`);
+		str.push(`<br/>  keyPressed = [${Input.key.pressed.join(', ')}]`);
+		str.push(`  mouseState`);
+		str.push(`    x ${Input.mouse.x}`);
+		str.push(`    y ${Input.mouse.y}`);
+		if (Input.mouse.left.pressed)  str.push(`    left.pressed`);
+		if (Input.mouse.left.dragging) str.push(`    left.dragging ${Input.mouse.left.drag ? ' left.drag' : ''}`);
+		if (Input.mouse.right.pressed)  str.push(`    right.pressed`);
+		if (Input.mouse.right.dragging) str.push(`    right.dragging ${Input.mouse.right.drag ? 'right.drag' : ''}`);
 		return str.join('<br/>');
 	};
+
+	function getObjectData(g): string {
+		return g.__proto__.constructor.name + '<br/>' +
+			`  x ${g.x.toFixed(2)}<br/>` +
+			`  y ${g.y.toFixed(2)}<br/>` +
+			`  z ${g.z.toFixed(2)}<br/>` +
+			`  ang ${g.ang.toFixed(2)},<br/>` +
+			(g.bound ? `  Bound to ${g.bound.obj.__proto__.constructor.name }`: '') +
+			(g.inView ? `  In View<br/>` : `  Out of View<br/>`);
+	}
 }

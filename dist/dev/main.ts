@@ -8,18 +8,15 @@ import {
 import generateBlockLayout from 'layout';
 import CameraClass from 'Camera';
 import Guy from 'Guy';
-import { PinkFish, Piranha, Eel } from 'Fish';
-import Block from 'Block';
+import { PinkFish, Eel } from 'Fish';
 import HUDClass from 'HUD';
 import MenuClass from 'Menu';
-import Gem from './Gem';
 
 
 //
 // Global Variables
 //
 export let
-	levelBlocks: Block[] = [],
 	guy: Guy,
 	score: {money: number} = {money: 0},
 	camera: CameraClass,
@@ -43,7 +40,7 @@ let
 
 // Set up procedural number generator
 const
-	RNGSeed = 29,
+	RNGSeed = 13,
 	RNG = [0x80000000, 1103515245, 12345, RNGSeed];
 export
 	function rand(to: number = 1, from: number = 0, int: boolean = false): number {
@@ -94,8 +91,9 @@ Engine.preLoad({
 })
 
 // Fit canvas to screen to a max width of 1920px;
-let canWidth = window.innerWidth,
-		canHeight = window.innerHeight;
+let
+	canWidth = window.innerWidth,
+	canHeight = window.innerHeight;
 if (canWidth > 1920) {
 	canWidth = 1920;
 	canHeight = Math.ceil(canHeight * (canWidth / window.innerWidth));
@@ -115,15 +113,15 @@ function start(): void {
 	wave = World.area.addBackground('bgWave', false, 1, 1, {x: 0, y: seaLevel - 17}, {x: true, y: false});
 	dingy = new Dingy();
 	World.area.toggleLight();
-	Debug.toggle();
 
 	// Level layout
-	let
+	const
 		gridWidth = 60,
 		gridHeight = 100,
 		gridCellWidth = 96;
 	generateBlockLayout(gridWidth, gridHeight, gridCellWidth, Math.ceil(seaLevel / gridCellWidth) + 2);
-	guy = new Guy(1000, 2500);
+	guy = new Guy(0, 0);
+
 	for (let i = 0; i < 20; i++) {
 		// new Piranha(900 + (Math.random() * 400), 2100 + (Math.random() * 500));
 	}
@@ -131,7 +129,6 @@ function start(): void {
 		new PinkFish(1000 + (Math.random() * 400), 5600 + (Math.random() * 500));
 	}
   new Eel(600, 600, 140);
-
 
 	// Views
 	World.area.view.track(
@@ -149,7 +146,10 @@ function start(): void {
 	camera = new CameraClass(World.area.view);
 	HUD = new HUDClass();
 	menu = new MenuClass();
+
 	//menu.openMenu();
+	Debug.toggle();
+	Debug.logObject(guy, true);
 }
 
 

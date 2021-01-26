@@ -60,8 +60,12 @@ export abstract class GameObject extends Bindable {
 	public sprite: Graphics.Sprite | HTMLImageElement;
 	public mask: {x: number, y: number}[];
 	public ang: number = 0;
-	/** Is the object currently on screen (set before step events are called) */
+	/** Is the object currently on screen (set after step events are called) */
 	public inView: boolean = true;
+	/** If true, step is not called, but draw is still called */
+	public pause: boolean = false;
+	/** If true, object's step is not called if object is off screen  */
+	public pauseOffScreen: boolean = false;
 
 	/**
 		z value determines order of draw/step events relative to other objects
@@ -179,6 +183,16 @@ export abstract class GameObject extends Bindable {
 			y < this.y + this.colBox.y + this.colBox.height &&
 			y + h > this.y + this.colBox.y
 		);
+	}
+
+	/**
+		Returns this distance from this object's origin, plus xOff and yOff, to a given point.
+		Set squared to false to return the squared distance. This is a faster operation and will suffice when comparing distances
+	 */
+	public distTo(x: number, y: number, xOff: number = 0, yOff: number = 0, squared: boolean = false) {
+		x -= this.x + xOff;
+		y -= this.y + yOff;
+		return squared ? x*x + y*y : Math.sqrt(x*x + y*y);
 	}
 
 	/** Set a polygon mask to be used when casting shadows from a light source */

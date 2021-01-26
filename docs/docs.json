@@ -32,6 +32,10 @@
 						"desc": "\t\tReturns true if point [x, y] (or rectangle [x, y, w, h] if provided) is within objects colBox\r\n\t\tx can be given as a GameObject, to use that objects colBox as the rectangle to check\r\n\t",
 						"snip": "public checkCollision(x: number | GameObject, y?: number, w: number = 0, h: number = 0): boolean "
 					},
+					"distTo": {
+						"desc": "\t\tReturns this distance from this object's origin, plus xOff and yOff, to a given point.\r\n\t\tSet squared to false to return the squared distance. This is a faster operation and will suffice when comparing distances\r\n\t ",
+						"snip": "public distTo(x: number, y: number, xOff: number = 0, yOff: number = 0, squared: boolean = false) "
+					},
 					"setShadowMask": {
 						"desc": " Set a polygon mask to be used when casting shadows from a light source ",
 						"snip": "public setShadowMask(poly: {x: number, y: number}[] | Graphics.Sprite) "
@@ -43,8 +47,16 @@
 						"snip": "public area: World.Area"
 					},
 					"inView": {
-						"desc": " Is the object currently on screen (set before step events are called) ",
+						"desc": " Is the object currently on screen (set after step events are called) ",
 						"snip": "public inView: boolean = true"
+					},
+					"pause": {
+						"desc": " If true, step is not called, but draw is still called ",
+						"snip": "public pause: boolean = false"
+					},
+					"pauseOffScreen": {
+						"desc": " If true, object's step is not called if object is off screen  ",
+						"snip": "public pauseOffScreen: boolean = false"
 					},
 					"get": {
 						"desc": " Returns false if object is not being rendered in an area ",
@@ -82,7 +94,7 @@
 			},
 			"options": {
 				"desc": " Toggle default proporties displayed in debugger ",
-				"snip": "let options  : {[option: string] : boolean}"
+				"snip": "let options: {\n    dt: boolean;\n    view: boolean;\n    input : boolean;\n    area: boolean;\n    colBox: boolean;\n    clipBox: boolean;\n    positions: boolean;\n}"
 			}
 		},
 		"f": {
@@ -93,6 +105,10 @@
 			"log": {
 				"desc": "\t\tLog a variable to the debugger.\r\n\t\tObjects will be stringifyed.\r\n\t\tIf logging a variable on every step, set persist = false to continually clear previous output.\r\n\t",
 				"snip": "function log(data: any, persist = false): void "
+			},
+			"logObject": {
+				"desc": "\t\tLogs details of a specfiic GameObject\r\n\t\tIf outline is true, objs colBox and clipBox are drawn\r\n\t ",
+				"snip": "function logObject(g: GameObject, outline: boolean = false) "
 			},
 			"clear": {
 				"desc": " Clear debugger output ",
