@@ -120,15 +120,15 @@ function start(): void {
 		gridHeight = 100,
 		gridCellWidth = 96;
 	generateBlockLayout(gridWidth, gridHeight, gridCellWidth, Math.ceil(seaLevel / gridCellWidth) + 2);
-	guy = new Guy(0, 0);
+	guy = new Guy(1000, 3200);
 
 	for (let i = 0; i < 20; i++) {
 		// new Piranha(900 + (Math.random() * 400), 2100 + (Math.random() * 500));
 	}
-	for (let i = 0; i < 10; i++) {
-		new PinkFish(1000 + (Math.random() * 400), 5600 + (Math.random() * 500));
+	for (let i = 0; i < 1; i++) {
+		new PinkFish(1000 + (Math.random() * 400), 3200 + (Math.random() * 500));
 	}
-  new Eel(600, 600, 140);
+  new Eel(1000, 3200, 140);
 
 	// Views
 	World.area.view.track(
@@ -156,7 +156,6 @@ function start(): void {
 //
 // Lifecycle Hooks
 //
-
 Engine.postStep = function(dt: number) {
 	// Animate wave
 	wavePulse += 0.01 * dt;
@@ -168,15 +167,36 @@ Engine.postStep = function(dt: number) {
 	menu.step();
 }
 
-Engine.preDraw = function(ctx: CanvasRenderingContext2D) {
-	// Set BG Darkness
-	let depth = Math.max(Math.min(1, (guy.y - seaLevel) / 4000), 0);
-	World.area.light.bgLight = 'rgba(25, 60, 100, ' + (1 - Math.pow(1 - depth, 3)) + ')';
-}
-
 Engine.postDraw = function(ctx: CanvasRenderingContext2D, dt: number) {
 	camera.draw(ctx);
 	HUD.draw(ctx);
+
+	if (guy.y > seaLevel) {
+		let depth = 0.15 + Math.max(Math.min(0.85, (guy.y - seaLevel) / 4000), 0);
+		World.area.light.bgLight = 'rgba(25, 60, 100, ' + (1 - Math.pow(1 - depth, 3)) + ')';
+	} else {
+		World.area.light.bgLight = '#0000';
+		ctx.save();
+			let depth = Math.max(Math.min(1, (seaLevel - 20 - guy.y) / (seaLevel + 20), 0));
+			ctx.fillStyle = 'rgba(25, 60, 100, ' + (1 - Math.pow(1 - depth, 3)) + ')';
+			ctx.fillRect(0, seaLevel - guy.area.view.y, Engine.cW, Engine.cH);
+		ctx.restore();
+	}
+
+	// ctx.save();
+	// 	let grdRad = ctx.createRadialGradient(
+	// 		guy.x - guy.area.view.x,
+	// 		guy.y - guy.area.view.y,
+	// 		0,
+	// 		guy.x - guy.area.view.x,
+	// 		guy.y - guy.area.view.y,
+	// 		1000
+	// 	);
+	// 	grdRad.addColorStop(0, 'transparent');
+	// 	grdRad.addColorStop(1, '#6C8AA488');
+	// 	ctx.fillStyle = '#6C8AA488'; //grdRad;
+	// 	ctx.fillRect(0, 0, Engine.cW, Engine.cH);
+	// ctx.restore();
 }
 
 class Dingy extends GameObject {

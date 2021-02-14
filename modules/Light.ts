@@ -1,6 +1,7 @@
 import { Engine } from './Engine';
 import { World } from './World';
 import { Bindable } from './Common';
+import { Debug } from './Debug';
 
 /** This module creates lighting effects including shadow casting, background lighting and coloured lighting */
 export module Light {
@@ -18,7 +19,10 @@ export module Light {
 			ctx1: CanvasRenderingContext2D,
 		// Canvas for drawing a single source
 			can2: HTMLCanvasElement,
-			ctx2: CanvasRenderingContext2D;
+			ctx2: CanvasRenderingContext2D,
+		// Canvas for drawing a shadow
+			can3: HTMLCanvasElement,
+			ctx3: CanvasRenderingContext2D;
 		
 
 	//
@@ -27,16 +31,26 @@ export module Light {
 
 	function lightEngineInit() {
 		can0 = document.createElement('canvas');
-		can2 = document.createElement('canvas');
 		can1 = document.createElement('canvas');
-		can0.width  = can1.width  = can2.width  =  Engine.cW;
-		can0.height = can1.height = can2.height =  Engine.cH;
+		can2 = document.createElement('canvas');
+		can3 = document.createElement('canvas');
+		can0.width  = can1.width  = can2.width  = can3.width  = Engine.cW;
+		can0.height = can1.height = can2.height = can3.height = Engine.cH;
 		ctx0 = can0.getContext('2d');
 		ctx1 = can1.getContext('2d');
 		ctx2 = can2.getContext('2d');
+		ctx3 = can3.getContext('2d');
 		ctx0.imageSmoothingEnabled = false;
 		ctx1.imageSmoothingEnabled = false;
 		ctx2.imageSmoothingEnabled = false;
+		ctx3.imageSmoothingEnabled = false;
+
+		// can3.style.position = 'fixed';
+		// can3.style.border = '1px solid red';
+		// can3.style.zIndex = '100';
+		// can3.style.top = '-50';
+		// can3.style.left = '-50';
+		// document.body.appendChild(can3);
 	}
 
 	function angDiff(a0: number, a1: number): number {
@@ -130,6 +144,9 @@ export module Light {
 			ctx2.save();
 				ctx2.scale(this.area.view.z, this.area.view.z);
 				ctx2.translate(-this.area.view.x, -this.area.view.y);
+			ctx3.save();
+				ctx3.scale(this.area.view.z, this.area.view.z);
+				ctx3.translate(-this.area.view.x, -this.area.view.y);
 				this.sources
 					.filter(s => (
 						s.active &&
@@ -149,8 +166,9 @@ export module Light {
 								ctx1.drawImage(source.mask, -source.rad, -source.rad);
 							ctx1.restore();
 						} else {
-							let nearBlocks: [Block, number][] = [],
-									sourceInBlock = false;
+							let
+								nearBlocks: [Block, number][] = [],
+								sourceInBlock = false;
 							// Only draw shadows for blocks within reach of light
 							this.blocks.forEach(block => {
 								let dis =
@@ -183,78 +201,99 @@ export module Light {
 									ctx2.drawImage(source.mask, -source.rad, -source.rad);
 								ctx2.restore();
 
-								nearBlocks.map(b => b[0]).forEach(block => {
-									let	corners: {x: number, y: number}[] = [];
-									if (block.mask) {
-										// Get shadow casting corners of polygon
-										let
-											poly = block.mask.map(m => {
-												return {
-													x: m.x + block.x - source.x,
-													y: m.y + block.y - source.y
-												}
-											}),
-											diff = 3.1416 - getAng(block.x + block.bound.xCenter - source.x, block.y + block.bound.yCenter - source.y),
-											sAng = Math.sin(diff),
-											cAng = Math.cos(diff),
-											max = 3.1416,
-											min = 3.1416,
-											maxP: {x: number, y: number},
-											minP: {x: number, y: number};
-										poly.forEach(p => {
-											let a = getAng(
-												(p.x * cAng) - (p.y * sAng),
-												(p.x * sAng) + (p.y * cAng)
+								let group = [];
+								nearBlocks
+									.map(b => b[0])
+									.sort((a, b) => a.group - b.group)
+									.forEach((block, i, blockArr) => {
+										let	corners: {x: number, y: number}[] = [];
+										if (block.mask) {
+											// Get shadow casting corners of polygon
+											let
+												poly = block.mask.map(m => {
+													return {
+														x: m.x + block.x - source.x,
+														y: m.y + block.y - source.y
+													}
+												}),
+												diff = 3.1416 - getAng(block.x + block.bound.xCenter - source.x, block.y + block.bound.yCenter - source.y),
+												sAng = Math.sin(diff),
+												cAng = Math.cos(diff),
+												max = 3.1416,
+												min = 3.1416,
+												maxP: {x: number, y: number},
+												minP: {x: number, y: number};
+											poly.forEach(p => {
+												let a = getAng(
+													(p.x * cAng) - (p.y * sAng),
+													(p.x * sAng) + (p.y * cAng)
+												);
+												if (a > max) {
+													max = a;
+													maxP = p;
+												} else if (a < min) {
+													min = a;
+													minP = p;
+												} 
+											});
+											corners.push(
+												{ x: minP.x + source.x, y: minP.y + source.y },
+												{ x: maxP.x + source.x, y: maxP.y + source.y },						
 											);
-											if (a > max) {
-												max = a;
-												maxP = p;
-											} else if (a < min) {
-												min = a;
-												minP = p;
-											} 
+										} else {
+											// Get shadow casting corners of circle
+											let angDiff = getAng(block.x + block.bound.xCenter - source.x, block.y - block.bound.yCenter - source.y);
+											corners.push(
+												{
+													x: block.x + block.bound.xCenter + (Math.cos(angDiff - (Math.PI / 2)) * block.clipRad),
+													y: block.y + block.bound.yCenter + (Math.sin(angDiff - (Math.PI / 2)) * block.clipRad)
+												},
+												{
+													x: block.x + block.bound.xCenter + (Math.cos(angDiff + (Math.PI / 2)) * block.clipRad),
+													y: block.y + block.bound.yCenter + (Math.sin(angDiff + (Math.PI / 2)) * block.clipRad)
+												}
+											);
+										}
+										// Calculate where shadow edges meet boundary of light
+										let ang = Math.atan2(
+											corners[1].y - source.y,
+											corners[1].x - source.x
+										);
+										corners.push({
+											x : source.x + (source.rad * Math.cos(ang)),
+											y : source.y + (source.rad * Math.sin(ang))
 										});
-										corners.push(
-											{ x: minP.x + source.x, y: minP.y + source.y },
-											{ x: maxP.x + source.x, y: maxP.y + source.y },						
+										ang = Math.atan2(
+											corners[0].y - source.y,
+											corners[0].x - source.x
 										);
-									} else {
-										// Get shadow casting corners of circle
-										let angDiff = getAng(block.x - source.x, block.y - source.y);
-										corners.push(
-											{
-												x: block.x + (Math.cos(angDiff - (Math.PI / 2)) * block.clipRad),
-												y: block.y + (Math.sin(angDiff - (Math.PI / 2)) * block.clipRad)
-											},
-											{
-												x: block.x + (Math.cos(angDiff + (Math.PI / 2)) * block.clipRad),
-												y: block.y + (Math.sin(angDiff + (Math.PI / 2)) * block.clipRad)
-											}
-										);
-									}
-									// Calculate where shadow edges meet boundary of light
-									let ang = Math.atan2(
-										corners[1].y - source.y,
-										corners[1].x - source.x
-									);
-									corners.push({
-										x : source.x + (source.rad * Math.cos(ang)),
-										y : source.y + (source.rad * Math.sin(ang))
-									});
-									ang = Math.atan2(
-										corners[0].y - source.y,
-										corners[0].x - source.x
-									);
-									corners.push({
-										x : source.x + source.rad * Math.cos(ang),
-										y : source.y + source.rad * Math.sin(ang)
-									});
-									// Draw shadow pattern
-									ctx2.beginPath();
+										corners.push({
+											x : source.x + source.rad * Math.cos(ang),
+											y : source.y + source.rad * Math.sin(ang)
+										});
+
+										// Draw shadow pattern
+										if (
+											block.group === -1 ||
+											i === 0 ||
+											blockArr[i - 1].group !== block.group
+										) {
+											ctx2.beginPath();
+											group = [];
+										}
 										ctx2.moveTo(corners[0].x, corners[0].y);
 										ctx2.lineTo(corners[1].x, corners[1].y);
 										ctx2.lineTo(corners[2].x, corners[2].y);
 										ctx2.lineTo(corners[3].x, corners[3].y);
+
+										group.push(
+											corners[0],
+											corners[1],
+											corners[2],
+											corners[3],
+											corners[0],
+										);
+
 										let ang0 = Math.atan2(
 											corners[2].y - source.y,
 											corners[2].x - source.x
@@ -270,39 +309,88 @@ export module Light {
 											angDiff(ang0, ang1) > 0
 										);
 										ctx2.lineTo(corners[0].x, corners[0].y);
-									ctx2.fillStyle = block.translucentColor;
-									ctx2.globalCompositeOperation = 'destination-out';
-									ctx2.fill();
 
-									if (block.translucentColor === '#000') {
-										block.spriteMask.draw(ctx2);
-									} else {
-										block.spriteMask.draw();
-										block.spriteMask.ctx.save();
-											block.spriteMask.ctx.translate(-block.x, -block.y);
-											block.spriteMask.ctx.beginPath();
-												block.spriteMask.ctx.moveTo(corners[0].x, corners[0].y);
-												block.spriteMask.ctx.lineTo(corners[1].x, corners[1].y);
-												block.spriteMask.ctx.lineTo(corners[2].x, corners[2].y);
-												block.spriteMask.ctx.lineTo(corners[3].x, corners[3].y);
-												block.spriteMask.ctx.arc(
-													source.x, source.y,
-													source.rad,
-													ang0, ang1,
-													angDiff(ang0, ang1) > 0
-												);
-												block.spriteMask.ctx.lineTo(corners[0].x, corners[0].y);
-											block.spriteMask.ctx.fillStyle = '#000';
-											block.spriteMask.ctx.globalCompositeOperation = 'destination-out';
-											block.spriteMask.ctx.fill();
-										block.spriteMask.ctx.restore();
-										ctx2.drawImage(block.spriteMask.can, block.x - (block.clipRad / 4), block.y - (block.clipRad / 4));
+										if (
+											block.group === -1 ||
+											i === blockArr.length - 1 ||
+											blockArr[i + 1].group !== block.group
+										) {
+											ctx2.fillStyle = block.translucentColor;
+											ctx2.globalCompositeOperation = 'destination-out';
+											ctx2.fill();
 
-										ctx2.globalCompositeOperation = 'source-atop';
-										ctx2.fill();
-										ctx2.drawImage(block.spriteMask.can, block.x - (block.clipRad / 4), block.y - (block.clipRad / 4));
-									}
-								});
+											//group.forEach(b => {
+												let b = {
+													block: block,
+													corners: corners,
+													ang0: ang0,
+													ang1: ang1
+												};
+												let mask = b.block.spriteMask;
+												if (b.block.translucentColor === '#000') {
+													mask.draw(ctx2);
+												} if (b.block.group === -1) {
+													mask.draw();
+													mask.ctx.save();
+														mask.ctx.translate(-b.block.x, -b.block.y);
+														mask.ctx.beginPath();
+															mask.ctx.moveTo(b.corners[0].x, b.corners[0].y);
+															mask.ctx.lineTo(b.corners[1].x, b.corners[1].y);
+															mask.ctx.lineTo(b.corners[2].x, b.corners[2].y);
+															mask.ctx.lineTo(b.corners[3].x, b.corners[3].y);
+															mask.ctx.arc(
+																source.x, source.y,
+																source.rad,
+																b.ang0, b.ang1,
+																angDiff(b.ang0, b.ang1) > 0
+															);
+															mask.ctx.lineTo(b.corners[0].x, b.corners[0].y);
+														mask.ctx.fillStyle = '#000';
+														mask.ctx.globalCompositeOperation = 'destination-out';
+														mask.ctx.fill();
+													mask.ctx.restore();
+													ctx2.drawImage(mask.can, b.block.x - (b.block.clipRad / 4), b.block.y - (b.block.clipRad / 4));
+
+													ctx2.globalCompositeOperation = 'source-atop';
+													ctx2.fill();
+													ctx2.drawImage(mask.can, b.block.x - (b.block.clipRad / 4), b.block.y - (b.block.clipRad / 4));
+												} else {
+													
+													//ctx3.globalCompositeOperation = 'destination-out';
+													ctx3.save();
+													ctx3.setTransform(1, 0, 0, 1, 0, 0);
+													ctx3.clearRect(0, 0, can3.width, can3.height);
+													ctx3.restore();
+													ctx3.globalCompositeOperation = 'source-over';
+													mask.mask(ctx3);
+													ctx3.beginPath();
+													group.forEach((p, i) => {
+														if (i % 5) {
+															ctx3.lineTo(p.x, p.y);
+														} else {
+															ctx3.moveTo(p.x, p.y);
+															}
+														})
+														ctx3.globalCompositeOperation = 'destination-out';
+													ctx3.fillStyle = 'green';
+													ctx3.fill();
+													
+													ctx3.globalCompositeOperation = 'source-in';
+													ctx3.save();
+													ctx3.setTransform(1, 0, 0, 1, 0, 0);
+													ctx3.fillStyle = block.translucentColor;
+													ctx3.fillRect(0, 0, can3.width, can3.height);
+													ctx3.restore();
+
+													ctx2.save();
+														ctx2.setTransform(1, 0, 0, 1, 0, 0);
+														ctx2.drawImage(can3, 0, 0);
+													ctx2.restore();
+												}
+											// });
+											//ctx3.restore();
+										}
+									});
 
 								// Add light to light from other sources
 								ctx1.globalCompositeOperation = 'lighter';
@@ -317,6 +405,7 @@ export module Light {
 						}
 					});
 			ctx2.restore();
+			ctx3.restore();
 
 			// Draw the background light (shadows)
 			ctx0.globalCompositeOperation = 'source-over';
@@ -490,6 +579,7 @@ export module Light {
 		public mask: {x: number, y: number}[];
 		public clipRad: number;
 		public lightArea: LightArea;
+		public group: number = -1;
 		public spriteMask: {
 			draw: (ctx?: CanvasRenderingContext2D, block?: Block)=>void,
 			mask: (ctx: CanvasRenderingContext2D)=>void,
@@ -511,7 +601,7 @@ export module Light {
 			  - spriteMask allows a block to be made for a complex spirte shape but using a simple underlying polygon mask to improve render time
 			blockLightInside, if true, blocks all light from a light source if it is within the bounds of the block
 			translucent color is the colour light passing through the blocker will turn if it is not fully opaque
-		 */
+		*/
 		constructor(
 			public x: number,
 			public y: number,
@@ -552,10 +642,11 @@ export module Light {
 				}
 				this.mask = mask;
 
-				let minX = this.mask.reduce((min, p) => Math.min(min, p.x), this.mask[0].x),
-						maxX = this.mask.reduce((max, p) => Math.max(max, p.x), this.mask[0].x),
-						minY = this.mask.reduce((min, p) => Math.min(min, p.y), this.mask[0].y),
-						maxY = this.mask.reduce((max, p) => Math.max(max, p.y), this.mask[0].y);
+				let
+					minX = this.mask.reduce((min, p) => Math.min(min, p.x), this.mask[0].x),
+					maxX = this.mask.reduce((max, p) => Math.max(max, p.x), this.mask[0].x),
+					minY = this.mask.reduce((min, p) => Math.min(min, p.y), this.mask[0].y),
+					maxY = this.mask.reduce((max, p) => Math.max(max, p.y), this.mask[0].y);
 				
 				this.clipRad = Math.sqrt(Math.pow(maxX - minX, 2) + Math.pow(maxY - minY, 2)) / 2;
 				this.bound = {
@@ -581,8 +672,9 @@ export module Light {
 					this.spriteMask.can = document.createElement('canvas');
 					this.spriteMask.ctx = this.spriteMask.can.getContext('2d');
 				}
-				let sCan = this.spriteMask.can,
-						sCtx = this.spriteMask.ctx;
+				let
+					sCan = this.spriteMask.can,
+					sCtx = this.spriteMask.ctx;
 				sCan.width = sCan.height = this.clipRad * 2.5;
 				sCtx.translate(this.clipRad / 4, this.clipRad / 4);
 				sCtx.fillStyle = this._transColor;
@@ -603,7 +695,10 @@ export module Light {
 						sCtx.restore();
 					}
 				} else {
-					this.spriteMask.draw = () => {
+					this.spriteMask.draw = (opaque) => {
+						if (opaque) {
+							sCtx.fillStyle = '#000';
+						}
 						sCtx.save();
 							sCtx.clearRect(-this.clipRad / 4, -this.clipRad / 4, sCan.width, sCan.height);
 							sCtx.translate(-this.x, -this.y);

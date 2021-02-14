@@ -44,7 +44,7 @@ gulp.task('autoDoc', function(cb) {
 
 gulp.task('default', ['condense', 'compile', 'autoDoc'], function() {
 	gulp.watch('./modules/*.ts', ['condense', 'autoDoc']);
-	gulp.watch('./dist/dev/*', ['compile']);
+	gulp.watch('./dist/dev/**', ['compile']);
 });
 
 

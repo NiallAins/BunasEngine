@@ -150,19 +150,19 @@
 		"v": {
 			"preStep": {
 				"desc": " Lifecycle hook; called before each engine step event ",
-				"snip": "let preStep: (number)=>void = ()=>{}"
+				"snip": "let preStep: (delta: number)=>void = ()=>{}"
 			},
 			"postStep": {
 				"desc": " Lifecycle hook; called after each engine step event ",
-				"snip": "let postStep: (number)=>void = ()=>{}"
+				"snip": "let postStep: (delta: number)=>void = ()=>{}"
 			},
 			"preDraw": {
 				"desc": " Lifecycle hook; called before each engine draw event ",
-				"snip": "let preDraw: (CanvasRenderingContext2D, number)=>void = () => {}"
+				"snip": "let preDraw: (ctx: CanvasRenderingContext2D, delta: number)=>void = () => {}"
 			},
 			"postDraw": {
 				"desc": " Lifecycle hook; called after each engine draw event ",
-				"snip": "let postDraw: (CanvasRenderingContext2D, number)=>void = () => {}"
+				"snip": "let postDraw: (ctx: CanvasRenderingContext2D, delta: number)=>void = () => {}"
 			},
 			"cW": {
 				"desc": " Target canvas element width ",
@@ -517,7 +517,7 @@
 				},
 				"m": {
 					"Class Constructor": {
-						"desc": "\t\t \tMask is the polygon which blocks light\r\n\t\t\t  - If mask is a polygon, it is given as an array of points which define the shape\r\n\t\t\t  - If mask is a rectangle, it can be given as an object of {width, height}\r\n\t\t\t  - If mask is a circle, it is given as a number of the circle's radius length\r\n\t\t\tspriteMask is an optional sprite shape which will be removed from the shadow in addition to the mask\r\n\t\t\t  - spriteMask allows a block to be made for a complex spirte shape but using a simple underlying polygon mask to improve render time\r\n\t\t\tblockLightInside, if true, blocks all light from a light source if it is within the bounds of the block\r\n\t\t\ttranslucent color is the colour light passing through the blocker will turn if it is not fully opaque\r\n\t\t ",
+						"desc": "\t\t \tMask is the polygon which blocks light\r\n\t\t\t  - If mask is a polygon, it is given as an array of points which define the shape\r\n\t\t\t  - If mask is a rectangle, it can be given as an object of {width, height}\r\n\t\t\t  - If mask is a circle, it is given as a number of the circle's radius length\r\n\t\t\tspriteMask is an optional sprite shape which will be removed from the shadow in addition to the mask\r\n\t\t\t  - spriteMask allows a block to be made for a complex spirte shape but using a simple underlying polygon mask to improve render time\r\n\t\t\tblockLightInside, if true, blocks all light from a light source if it is within the bounds of the block\r\n\t\t\ttranslucent color is the colour light passing through the blocker will turn if it is not fully opaque\r\n\t\t",
 						"snip": "constructor(\n    public x: number,\n    public y: number,\n    mask: {x: number, y: number}[] | {width: number, height: number} | number,\n    spriteMask?: (ctx: CanvasRenderingContext2D)=>void,\n    public blockLightInside: boolean = false,\n    translucentColor = '#000'\n) "
 					},
 					"delete": {

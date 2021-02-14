@@ -36,13 +36,13 @@ export module Engine {
 	//
 	export let
 		/** Lifecycle hook; called before each engine step event */
-		preStep: (number)=>void = ()=>{},
+		preStep: (delta: number)=>void = ()=>{},
 		/** Lifecycle hook; called after each engine step event */
-		postStep: (number)=>void = ()=>{},
+		postStep: (delta: number)=>void = ()=>{},
 		/** Lifecycle hook; called before each engine draw event */
-		preDraw: (CanvasRenderingContext2D, number)=>void = () => {},
+		preDraw: (ctx: CanvasRenderingContext2D, delta: number)=>void = () => {},
 		/** Lifecycle hook; called after each engine draw event */
-		postDraw: (CanvasRenderingContext2D, number)=>void = () => {},
+		postDraw: (ctx: CanvasRenderingContext2D, delta: number)=>void = () => {},
 		/** Target canvas element width */
 		cW: number,
 		/** Target canvas element height */
@@ -322,7 +322,7 @@ export module Engine {
 			postStep(dT);
 			Input.step();
 
-			ctx.clearRect(-1, -1, cW + 1, cH + 1);
+			ctx.clearRect(-1, -1, cW + 2, cH + 2);
 			preDraw(ctx, dT);
 			World.draw(ctx, dT);
 			Debug.draw(ctx, dT);
